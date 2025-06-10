@@ -28,23 +28,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_to_cart'])) {
         $result = $stmt->get_result();
 
         if ($result->num_rows > 0) {
-            // Product exists in cart - increment quantity by 1
             $row = $result->fetch_assoc();
             $new_quantity = $row['quantity'] + 1;
-
             $update = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE customer_id = ? AND product_id = ?");
             $update->bind_param("iii", $new_quantity, $customer_id, $id);
             $update->execute();
-
             $cartMessage = "Product quantity updated in your cart!";
         } else {
-            // Insert new product in cart with quantity 1
             $insert = $conn->prepare("INSERT INTO cart_items (customer_id, product_id, quantity) VALUES (?, ?, 1)");
             $insert->bind_param("ii", $customer_id, $id);
             $insert->execute();
-
             $cartMessage = "Product added to your cart!";
         }
+    }
+}
+
+// Handle Question Submission
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ask_question']) && $isLoggedInCustomer) {
+    $question = trim($_POST['question']);
+    if (!empty($question)) {
+        $customer_id = $_SESSION['user_id'];
+        $insertQ = $conn->prepare("INSERT INTO product_questions (product_id, customer_id, question) VALUES (?, ?, ?)");
+        $insertQ->bind_param("iis", $id, $customer_id, $question);
+        $insertQ->execute();
     }
 }
 
@@ -86,9 +92,6 @@ $product = $result->fetch_assoc();
             object-fit: contain;
             margin-bottom: 20px;
         }
-        h2 {
-            margin: 0 0 10px;
-        }
         .price {
             color: #2d89e6;
             font-size: 20px;
@@ -120,6 +123,18 @@ $product = $result->fetch_assoc();
             color: green;
             margin: 10px 0;
         }
+        .qa-section {
+            margin-top: 40px;
+        }
+        .qa-box {
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -139,9 +154,13 @@ $product = $result->fetch_assoc();
             <button type="submit" name="add_to_cart">Add to Cart</button>
         </form>
         <a href="checkout_single.php?id=<?php echo $product['id']; ?>">Buy Now</a>
+        <a href="product_qna.php?id=<?php echo $product['id']; ?>" style="background: #f39c12;">Q&A</a>
     </div>
 
     <br><a href="customer_dashboard.php">← Back to Dashboard</a>
+
+    <!-- Q&A Section -->
+
 </div>
 
 </body>

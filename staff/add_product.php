@@ -1,10 +1,10 @@
 <?php
 session_name('ADMINSESSID');
 session_start();
-include '../../db_connect.php';
+include '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../../authentication/login.php");
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
+    header("Location: ../authentication/login.php");
     exit;
 }
 
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Handle image upload
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../../uploads/products/';
+        $upload_dir = '../uploads/products/';
         if (!file_exists($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
@@ -61,7 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -195,13 +194,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="dashboard">
     <aside class="sidebar">
-        <h2>Admin Panel</h2>
+        <h2>Staff Panel</h2>
         <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
         <ul>
-            <li><a href="../staff/staff_management.php">Staff</a></li>
-            <li><a href="../product/product_management.php">Products</a></li>
-            <li><a href="../orders/order_management.php">Orders</a></li>
-            <li><a class="logout-link" href="../../authentication/logout.php">Logout</a></li>
+            <li><a href="staff_products.php">Products</a></li>
+            <li><a href="view_orders.php">Orders</a></li>
+            <li><a href="staff_qna.php">Q&A</a></li>
+            <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
         </ul>
     </aside>
     <main class="main-content">
@@ -234,14 +233,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div class="form-group">
                     <label for="image">Product Image:</label>
-                    <input type="file" id="image" name="image" accept="image/*">
+                    <input type="file" id="image" name="image" accept="image/*" required>
                 </div>
                 
                 <button type="submit" class="submit-btn">Add Product</button>
-                <a href="product_management.php" class="cancel-btn">Cancel</a>
+                <a href="staff_products.php" class="cancel-btn">Cancel</a>
             </form>
         </div>
     </main>
 </div>
 </body>
-</html>
+</html> 

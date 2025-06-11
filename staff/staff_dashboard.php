@@ -1,6 +1,8 @@
 <?php
 session_name('ADMINSESSID');
 session_start();
+include '../db_connect.php';
+
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: ../authentication/login.php");
     exit;
@@ -86,8 +88,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
       <h2>Staff Panel</h2>
       <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
       <ul>
-        <li><button onclick="loadContent('add_product')">Add Product</button></li>
-        <li><button onclick="loadContent('orders')">Manage Orders</button></li>
+        <li><a href="staff_products.php">Products</a></li>
+        <li><a href="view_orders.php">Orders</a></li>
         <li><a href="staff_qna.php">Q&A</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
       </ul>

@@ -4,7 +4,7 @@ session_start();
 include '../db_connect.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
-    echo "Access denied.";
+    header("Location: ../authentication/login.php");
     exit;
 }
 
@@ -166,14 +166,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['answer']) && isset($_
 <body>
 <div class="dashboard">
     <aside class="sidebar">
-      <h2>Staff Panel</h2>
-      <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
-      <ul>
-        <li><a href="add_product.php">Add Product</a></li>
-        <li><a href="view_orders.php">Manage Orders</a></li>
-        <li><a href="staff_qna.php">Q&A</a></li>
-        <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
-      </ul>
+        <h2>Staff Panel</h2>
+        <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
+        <ul>
+            <li><a href="staff_products.php">Products</a></li>
+            <li><a href="view_orders.php">Orders</a></li>
+            <li><a href="staff_qna.php">Q&A</a></li>
+            <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
+        </ul>
     </aside>
     <main class="main-content">
       <?php if (isset($msg) && $msg): ?>

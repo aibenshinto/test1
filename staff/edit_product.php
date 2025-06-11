@@ -1,26 +1,47 @@
 <?php
 session_name('ADMINSESSID');
 session_start();
-include '../../db_connect.php';
+include '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../../authentication/login.php");
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
+    header("Location: ../authentication/login.php");
     exit;
 }
 
 $msg = '';
 $msg_class = '';
+$product = null;
+
+// Get product ID from URL
+$product_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+
+if ($product_id <= 0) {
+    header("Location: staff_products.php");
+    exit;
+}
+
+// Fetch product details
+$stmt = $conn->prepare("SELECT * FROM products WHERE id = ?");
+$stmt->bind_param("i", $product_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$product = $result->fetch_assoc();
+
+if (!$product) {
+    header("Location: staff_products.php");
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name']);
     $description = trim($_POST['description']);
     $price = floatval($_POST['price']);
     $stock = intval($_POST['stock']);
-    $image = '';
+    $image = $product['image']; // Keep existing image by default
     
-    // Handle image upload
+    // Handle image upload if a new image is provided
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../../uploads/products/';
+        $upload_dir = '../uploads/products/';
         if (!file_exists($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
@@ -29,6 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowed_extensions = array('jpg', 'jpeg', 'png', 'gif');
         
         if (in_array($file_extension, $allowed_extensions)) {
+            // Delete old image if it exists
+            if ($product['image'] && file_exists($upload_dir . $product['image'])) {
+                unlink($upload_dir . $product['image']);
+            }
+            
             $image = uniqid() . '.' . $file_extension;
             $upload_path = $upload_dir . $image;
             
@@ -45,27 +71,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($msg)) {
-        $stmt = $conn->prepare("INSERT INTO products (name, description, price, stock, image) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssdis", $name, $description, $price, $stock, $image);
+        $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, stock = ?, image = ? WHERE id = ?");
+        $stmt->bind_param("ssdisi", $name, $description, $price, $stock, $image, $product_id);
         
         if ($stmt->execute()) {
-            $msg = "Product added successfully!";
+            $msg = "Product updated successfully!";
             $msg_class = 'msg-success';
-            // Clear form data
-            $name = $description = '';
-            $price = $stock = 0;
+            // Update product data
+            $product['name'] = $name;
+            $product['description'] = $description;
+            $product['price'] = $price;
+            $product['stock'] = $stock;
+            $product['image'] = $image;
         } else {
-            $msg = "Failed to add product.";
+            $msg = "Failed to update product.";
             $msg_class = 'msg-error';
         }
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add New Product</title>
+    <title>Edit Product</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -165,6 +193,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             height: 100px;
             resize: vertical;
         }
+        .current-image {
+            max-width: 200px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
         .submit-btn {
             background: #5cb85c;
             color: white;
@@ -195,13 +228,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="dashboard">
     <aside class="sidebar">
-        <h2>Admin Panel</h2>
+        <h2>Staff Panel</h2>
         <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
         <ul>
-            <li><a href="../staff/staff_management.php">Staff</a></li>
-            <li><a href="../product/product_management.php">Products</a></li>
-            <li><a href="../orders/order_management.php">Orders</a></li>
-            <li><a class="logout-link" href="../../authentication/logout.php">Logout</a></li>
+            <li><a href="staff_products.php">Products</a></li>
+            <li><a href="view_orders.php">Orders</a></li>
+            <li><a href="staff_qna.php">Q&A</a></li>
+            <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
         </ul>
     </aside>
     <main class="main-content">
@@ -210,38 +243,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <div class="form-container">
-            <h2>Add New Product</h2>
+            <h2>Edit Product</h2>
             <form method="post" action="" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="name">Product Name:</label>
-                    <input type="text" id="name" name="name" required value="<?= isset($name) ? htmlspecialchars($name) : '' ?>">
+                    <input type="text" id="name" name="name" required value="<?= htmlspecialchars($product['name']) ?>">
                 </div>
                 
                 <div class="form-group">
                     <label for="description">Description:</label>
-                    <textarea id="description" name="description" required><?= isset($description) ? htmlspecialchars($description) : '' ?></textarea>
+                    <textarea id="description" name="description" required><?= htmlspecialchars($product['description']) ?></textarea>
                 </div>
                 
                 <div class="form-group">
                     <label for="price">Price (₹):</label>
-                    <input type="number" id="price" name="price" step="0.01" min="0" required value="<?= isset($price) ? $price : '' ?>">
+                    <input type="number" id="price" name="price" step="0.01" min="0" required value="<?= $product['price'] ?>">
                 </div>
                 
                 <div class="form-group">
                     <label for="stock">Stock:</label>
-                    <input type="number" id="stock" name="stock" min="0" required value="<?= isset($stock) ? $stock : '' ?>">
+                    <input type="number" id="stock" name="stock" min="0" required value="<?= $product['stock'] ?>">
                 </div>
                 
                 <div class="form-group">
                     <label for="image">Product Image:</label>
+                    <?php if ($product['image']): ?>
+                        <div>
+                            <img src="../uploads/products/<?= htmlspecialchars($product['image']) ?>" alt="Current product image" class="current-image">
+                        </div>
+                    <?php endif; ?>
                     <input type="file" id="image" name="image" accept="image/*">
+                    <small>Leave empty to keep the current image</small>
                 </div>
                 
-                <button type="submit" class="submit-btn">Add Product</button>
-                <a href="product_management.php" class="cancel-btn">Cancel</a>
+                <button type="submit" class="submit-btn">Update Product</button>
+                <a href="staff_products.php" class="cancel-btn">Cancel</a>
             </form>
         </div>
     </main>
 </div>
 </body>
-</html>
+</html> 

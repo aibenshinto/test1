@@ -7,7 +7,7 @@ if (isset($_SESSION['user_id'])) {
     if ($_SESSION['role'] === 'admin') {
         header("Location: ../admin/dashboard/admin_dashboard.php");
     } elseif ($_SESSION['role'] === 'staff') {
-        header("Location: ../staff_dashboard.php");
+        header("Location: ../staff/staff_dashboard.php");
     }
     exit;
 }

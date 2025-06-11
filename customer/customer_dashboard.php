@@ -119,7 +119,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'customer') {
 
     while ($row = $result->fetch_assoc()) {
         echo "<div class='product-card' onclick=\"location.href='product_details.php?id=" . $row['id'] . "'\">";
-        echo "<img src='" . htmlspecialchars($row['image']) . "' alt='Product Image'>";
+        echo "<img src='../uploads/products/" . htmlspecialchars($row['image']) . "' alt='Product Image'>";
         echo "<div class='product-name'>" . htmlspecialchars($row['name']) . "</div>";
         echo "<div class='product-price'>₹" . htmlspecialchars($row['price']) . "</div>";
         echo "</div>";

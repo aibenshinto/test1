@@ -1,256 +1,289 @@
 <?php
-session_name('ADMINSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
-    header("Location: ../authentication/login.php");
-    exit;
+// Check if user is logged in and has appropriate role
+if (!isLoggedIn()) {
+    header('Location: ../authentication/login.php');
+    exit();
 }
 
-$staff_id = $_SESSION['user_id'];
-$msg = '';
-$msg_class = '';
+$user_role = getCurrentUserRole();
+if ($user_role !== 'delivery' && $user_role !== 'product_manager') {
+    header('Location: staff_dashboard.php');
+    exit();
+}
 
-// Handle status update
+// Optional: Check session timeout (30 minutes)
+checkSessionTimeout(30);
+
+$message = '';
+$error = '';
+
+// Handle status updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id']) && isset($_POST['status'])) {
     $order_id = intval($_POST['order_id']);
     $status = $_POST['status'];
     
-    $update = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
-    $update->bind_param("si", $status, $order_id);
+    $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
+    $stmt->bind_param("si", $status, $order_id);
     
-    if ($update->execute()) {
-        $msg = "Order status updated successfully!";
-        $msg_class = 'msg-success';
+    if ($stmt->execute()) {
+        $message = "Order status updated successfully!";
     } else {
-        $msg = "Failed to update order status.";
-        $msg_class = 'msg-error';
+        $error = "Failed to update order status.";
     }
 }
+
+// Fetch all orders with customer and product details
+$sql = "SELECT o.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+               GROUP_CONCAT(CONCAT(p.name, ' (', oi.quantity, ')') SEPARATOR ', ') as products
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.id
+        JOIN order_items oi ON o.id = oi.order_id
+        JOIN products p ON oi.product_id = p.id
+        GROUP BY o.id
+        ORDER BY o.order_date DESC";
+
+$result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Manage Orders</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #43cea2, #185a9d);
-            color: #333;
-            min-height: 100vh;
-        }
-        .dashboard {
-            display: flex;
-            width: 100vw;
-            min-height: 100vh;
-        }
-        .sidebar {
-            background: white;
-            padding: 20px;
-            width: 250px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-        .sidebar h2 {
-            margin-bottom: 10px;
-            color: #185a9d;
-        }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
-        }
-        .sidebar li {
-            margin: 10px 0;
-        }
-        .sidebar button, .sidebar a {
-            background: #185a9d;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            cursor: pointer;
-            width: 100%;
-            text-align: left;
-            transition: background 0.3s ease;
-            display: block;
-        }
-        .sidebar button:hover, .sidebar a:hover {
-            background: #0b3d72;
-        }
-        .main-content {
-            flex: 1;
-            padding: 40px;
-            background: rgba(255,255,255,0.95);
-            overflow-y: auto;
-        }
-        .msg {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 16px;
-        }
-        .msg-success {
-            background: #e6f7ff;
-            color: #2d89e6;
-            border: 1px solid #2d89e6;
-        }
-        .msg-error {
-            background: #ffe6e6;
-            color: #d0021b;
-            border: 1px solid #d0021b;
-        }
-        .orders-container {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        .order-card {
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            background: #f9f9f9;
-        }
-        .order-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        .order-header h3 {
-            margin: 0;
-            color: #185a9d;
-        }
-        .order-details {
-            margin-bottom: 15px;
-        }
-        .order-items {
-            margin-bottom: 15px;
-        }
-        .order-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px;
-            background: white;
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
-        .status-select {
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-            background: white;
-            cursor: pointer;
-        }
-        .status-select:focus {
-            border-color: #2d89e6;
-            outline: none;
-        }
-        .update-btn {
-            background: #2d89e6;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-        .update-btn:hover {
-            background: #1c6dd0;
-        }
-        .status-pending { color: #f0ad4e; }
-        .status-processing { color: #5bc0de; }
-        .status-shipped { color: #5cb85c; }
-        .status-delivered { color: #5cb85c; }
-        .status-cancelled { color: #d9534f; }
-    </style>
+  <meta charset="UTF-8">
+  <title>View Orders</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+      color: #333;
+    }
+
+    .dashboard {
+      display: flex;
+      width: 100%;
+    }
+
+    .sidebar {
+      background: white;
+      padding: 20px;
+      width: 250px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    }
+
+    .sidebar h2 {
+      margin-bottom: 10px;
+      color: #185a9d;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .sidebar li {
+      margin: 10px 0;
+    }
+
+    .sidebar button, .sidebar a {
+      background: #185a9d;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: background 0.3s ease;
+      display: block;
+    }
+
+    .sidebar button:hover, .sidebar a:hover {
+      background: #0b3d72;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 40px;
+      background: rgba(255,255,255,0.95);
+      overflow-y: auto;
+    }
+
+    .logout-link {
+      margin-top: 20px;
+      display: block;
+      color: red;
+    }
+
+    .role-badge {
+      background: #e8f4fd;
+      color: #185a9d;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    .section {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .section h2 {
+      color: #2d89e6;
+      margin-bottom: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background-color: #2d89e6;
+      color: white;
+    }
+
+    .status-pending { color: #f39c12; font-weight: bold; }
+    .status-processing { color: #3498db; font-weight: bold; }
+    .status-ready { color: #27ae60; font-weight: bold; }
+    .status-delivered { color: #27ae60; font-weight: bold; }
+    .status-cancelled { color: #e74c3c; font-weight: bold; }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 2px;
+    }
+
+    .btn-primary { background: #2d89e6; color: white; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-warning { background: #f39c12; color: white; }
+    .btn-danger { background: #e74c3c; color: white; }
+
+    .message {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    .order-details {
+      font-size: 14px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
 </head>
 <body>
-<div class="dashboard">
+  <div class="dashboard">
     <aside class="sidebar">
-        <h2>Staff Panel</h2>
-        <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
-        <ul>
-            <li><a href="staff_products.php">Products</a></li>
-            <li><a href="view_orders.php">Orders</a></li>
-            <li><a href="staff_qna.php">Q&A</a></li>
-            <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
-        </ul>
-    </aside>
-    <main class="main-content">
-        <?php if ($msg): ?>
-            <div class="msg <?= $msg_class ?>"><?= htmlspecialchars($msg) ?></div>
+      <h2><?php echo ucfirst($user_role); ?> Panel</h2>
+      <p>Hello, <?= htmlspecialchars(getCurrentUsername()) ?> <span class="role-badge"><?php echo ucfirst($user_role); ?></span></p>
+      <ul>
+        <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
+        <?php if ($user_role === 'product_manager'): ?>
+          <li><a href="staff_products.php">Manage Products</a></li>
+          <li><a href="add_product.php">Add Product</a></li>
+          <li><a href="staff_qna.php">Customer Q&A</a></li>
         <?php endif; ?>
+        <?php if ($user_role === 'delivery'): ?>
+          <li><a href="delivery_dashboard.php">Delivery Orders</a></li>
+        <?php endif; ?>
+        <li><a href="view_orders.php">All Orders</a></li>
+        <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
+      </ul>
+    </aside>
 
-        <div class="orders-container">
-            <h2>Manage Orders</h2>
-            <?php
-            // Fetch orders with customer details and items
-            $sql = "SELECT o.*, u.username as customer_name, u.email as customer_email,
-                    GROUP_CONCAT(
-                        CONCAT(p.name, ' (', oi.quantity, ' x ₹', oi.price, ')')
-                        SEPARATOR '||'
-                    ) as items
-                    FROM orders o
-                    JOIN users u ON o.customer_id = u.id
-                    JOIN order_items oi ON o.id = oi.order_id
-                    JOIN products p ON oi.product_id = p.id
-                    WHERE u.role = 'customer'
-                    GROUP BY o.id
-                    ORDER BY o.order_date DESC";
-            
-            $result = $conn->query($sql);
+    <main class="main-content">
+      <h2>All Orders</h2>
+      <p>View and manage all customer orders.</p>
 
-            if ($result->num_rows > 0) {
-                while ($order = $result->fetch_assoc()) {
-                    ?>
-                    <div class="order-card">
-                        <div class="order-header">
-                            <h3>Order #<?= $order['id'] ?></h3>
-                            <div>
-                                <form method="post" action="" style="display: inline;">
-                                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                                    <select name="status" class="status-select status-<?= $order['status'] ?>">
-                                        <option value="pending" <?= $order['status'] == 'pending' ? 'selected' : '' ?>>Pending</option>
-                                        <option value="processing" <?= $order['status'] == 'processing' ? 'selected' : '' ?>>Processing</option>
-                                        <option value="shipped" <?= $order['status'] == 'shipped' ? 'selected' : '' ?>>Shipped</option>
-                                        <option value="delivered" <?= $order['status'] == 'delivered' ? 'selected' : '' ?>>Delivered</option>
-                                        <option value="cancelled" <?= $order['status'] == 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
-                                    </select>
-                                    <button type="submit" class="update-btn">Update Status</button>
-                                </form>
-                            </div>
-                        </div>
-                        <div class="order-details">
-                            <p><strong>Customer:</strong> <?= htmlspecialchars($order['customer_name']) ?> (<?= htmlspecialchars($order['customer_email']) ?>)</p>
-                            <p><strong>Order Date:</strong> <?= date('F j, Y, g:i a', strtotime($order['order_date'])) ?></p>
-                            <p><strong>Total Amount:</strong> ₹<?= number_format($order['total_amount'], 2) ?></p>
-                        </div>
-                        <div class="order-items">
-                            <h4>Order Items:</h4>
-                            <?php
-                            $items = explode('||', $order['items']);
-                            foreach ($items as $item) {
-                                echo "<div class='order-item'>" . htmlspecialchars($item) . "</div>";
-                            }
-                            ?>
-                        </div>
+      <?php if ($message): ?>
+        <div class="message success"><?php echo htmlspecialchars($message); ?></div>
+      <?php endif; ?>
+
+      <?php if ($error): ?>
+        <div class="message error"><?php echo htmlspecialchars($error); ?></div>
+      <?php endif; ?>
+
+      <div class="section">
+        <h3>Order List</h3>
+        <?php if ($result->num_rows > 0): ?>
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Products</th>
+                <th>Total Amount</th>
+                <th>Delivery Type</th>
+                <th>Status</th>
+                <th>Order Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php while ($order = $result->fetch_assoc()): ?>
+                <tr>
+                  <td>#<?php echo $order['id']; ?></td>
+                  <td>
+                    <strong><?php echo htmlspecialchars($order['customer_name']); ?></strong><br>
+                    <div class="order-details">
+                      <?php echo htmlspecialchars($order['customer_email']); ?><br>
+                      <?php echo htmlspecialchars($order['customer_phone']); ?>
                     </div>
-                    <?php
-                }
-            } else {
-                echo "<p>No orders found.</p>";
-            }
-            ?>
-        </div>
+                  </td>
+                  <td><?php echo htmlspecialchars($order['products']); ?></td>
+                  <td>₹<?php echo number_format($order['total_amount'], 2); ?></td>
+                  <td><?php echo ucfirst($order['delivery_type']); ?></td>
+                  <td class="status-<?php echo strtolower($order['status']); ?>">
+                    <?php echo $order['status']; ?>
+                  </td>
+                  <td><?php echo date('M d, Y H:i', strtotime($order['order_date'])); ?></td>
+                  <td>
+                    <form method="post" style="display: inline;">
+                      <input type="hidden" name="order_id" value="<?php echo $order['id']; ?>">
+                      <select name="status" style="padding: 4px; margin-right: 5px;">
+                        <option value="Pending" <?php echo $order['status'] === 'Pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="Processing" <?php echo $order['status'] === 'Processing' ? 'selected' : ''; ?>>Processing</option>
+                        <option value="Ready for Pickup" <?php echo $order['status'] === 'Ready for Pickup' ? 'selected' : ''; ?>>Ready for Pickup</option>
+                        <option value="Out for Delivery" <?php echo $order['status'] === 'Out for Delivery' ? 'selected' : ''; ?>>Out for Delivery</option>
+                        <option value="Delivered" <?php echo $order['status'] === 'Delivered' ? 'selected' : ''; ?>>Delivered</option>
+                        <option value="Cancelled" <?php echo $order['status'] === 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                      </select>
+                      <button type="submit" class="btn btn-primary">Update</button>
+                    </form>
+                  </td>
+                </tr>
+              <?php endwhile; ?>
+            </tbody>
+          </table>
+        <?php else: ?>
+          <p>No orders found.</p>
+        <?php endif; ?>
+      </div>
     </main>
-</div>
+  </div>
 </body>
 </html> 

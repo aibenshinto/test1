@@ -1,12 +1,10 @@
 <?php
-session_name('CUSTOMERSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'customer') {
-    header("Location: ../authentication/login.php");
-    exit;
-}
+requireCustomer();
+
+$customer_id = getCurrentUserId();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
     $customer_id = $_SESSION['user_id'];

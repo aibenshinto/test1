@@ -1,6 +1,5 @@
 <?php
-session_name('CUSTOMERSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
 
 if (!isset($_GET['id'])) {
@@ -9,15 +8,23 @@ if (!isset($_GET['id'])) {
 }
 
 $product_id = intval($_GET['id']);
-$isLoggedInCustomer = isset($_SESSION['user_id']) && $_SESSION['role'] === 'customer';
+$isLoggedInCustomer = isCustomer();
 
 // Handle question submission
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['question']) && $isLoggedInCustomer) {
     $question = trim($_POST['question']);
     if (!empty($question)) {
+        $customer_id = getCurrentUserId();
         $stmt = $conn->prepare("INSERT INTO product_questions (product_id, customer_id, question) VALUES (?, ?, ?)");
-        $stmt->bind_param("iis", $product_id, $_SESSION['user_id'], $question);
-        $stmt->execute();
+        $stmt->bind_param("iis", $product_id, $customer_id, $question);
+        
+        if ($stmt->execute()) {
+            $success_message = "Your question has been submitted successfully!";
+        } else {
+            $error_message = "Failed to submit question. Please try again.";
+        }
+    } else {
+        $error_message = "Please enter a question.";
     }
 }
 
@@ -27,8 +34,13 @@ $stmt->bind_param("i", $product_id);
 $stmt->execute();
 $product = $stmt->get_result()->fetch_assoc();
 
+if (!$product) {
+    echo "Product not found.";
+    exit;
+}
+
 // Get Q&A
-$qstmt = $conn->prepare("SELECT pq.*, u.username AS staff_name FROM product_questions pq LEFT JOIN users u ON pq.staff_id = u.id WHERE pq.product_id = ? ORDER BY pq.created_at DESC");
+$qstmt = $conn->prepare("SELECT pq.*, s.name AS staff_name FROM product_questions pq LEFT JOIN staff s ON pq.staff_id = s.id WHERE pq.product_id = ? ORDER BY pq.created_at DESC");
 $qstmt->bind_param("i", $product_id);
 $qstmt->execute();
 $qresult = $qstmt->get_result();
@@ -46,12 +58,27 @@ $qresult = $qstmt->get_result();
         .ask-box textarea { width: 100%; padding: 10px; margin: 10px 0; }
         .ask-box button { padding: 10px 16px; background: #2d89e6; color: #fff; border: none; border-radius: 6px; }
         .back-link { display: inline-block; margin-top: 20px; color: #333; text-decoration: none; }
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>Q&A - <?php echo htmlspecialchars($product['name']); ?></h2>
+
+    <?php if (isset($success_message)): ?>
+        <div class="message success"><?php echo htmlspecialchars($success_message); ?></div>
+    <?php endif; ?>
+
+    <?php if (isset($error_message)): ?>
+        <div class="message error"><?php echo htmlspecialchars($error_message); ?></div>
+    <?php endif; ?>
 
     <?php if ($isLoggedInCustomer): ?>
         <form method="post" class="ask-box">
@@ -64,16 +91,20 @@ $qresult = $qstmt->get_result();
 
     <hr>
 
-    <?php while ($qa = $qresult->fetch_assoc()): ?>
-        <div class="qa-box">
-            <p><strong>Q:</strong> <?php echo htmlspecialchars($qa['question']); ?></p>
-            <?php if ($qa['answer']): ?>
-                <p><strong>A (<?php echo htmlspecialchars($qa['staff_name']); ?>):</strong> <?php echo htmlspecialchars($qa['answer']); ?></p>
-            <?php else: ?>
-                <p><em>Waiting for staff reply...</em></p>
-            <?php endif; ?>
-        </div>
-    <?php endwhile; ?>
+    <?php if ($qresult->num_rows > 0): ?>
+        <?php while ($qa = $qresult->fetch_assoc()): ?>
+            <div class="qa-box">
+                <p><strong>Q:</strong> <?php echo htmlspecialchars($qa['question']); ?></p>
+                <?php if ($qa['answer']): ?>
+                    <p><strong>A (<?php echo htmlspecialchars($qa['staff_name']); ?>):</strong> <?php echo htmlspecialchars($qa['answer']); ?></p>
+                <?php else: ?>
+                    <p><em>Waiting for staff reply...</em></p>
+                <?php endif; ?>
+            </div>
+        <?php endwhile; ?>
+    <?php else: ?>
+        <p><em>No questions yet. Be the first to ask!</em></p>
+    <?php endif; ?>
 
     <a href="product_details.php?id=<?php echo $product_id; ?>" class="back-link">← Back to Product</a>
 </div>

@@ -1,13 +1,15 @@
 <?php
-session_name('ADMINSESSID');
+// Remove the custom session name to use default session
 session_start();
 
 // Redirect logged-in users immediately
 if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['role'] === 'admin') {
-        header("Location: ../admin/dashboard/admin_dashboard.php");
-    } elseif ($_SESSION['role'] === 'staff') {
-        header("Location: ../staff/staff_dashboard.php");
+    if ($_SESSION['user_type'] === 'staff') {
+        if ($_SESSION['role'] === 'delivery') {
+            header("Location: ../staff/delivery_dashboard.php");
+        } else {
+            header("Location: ../staff/staff_dashboard.php");
+        }
     }
     exit;
 }
@@ -17,28 +19,31 @@ include '../db_connect.php';
 $message = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $usernameOrEmail = trim($_POST['username_email']);
+    $email = trim($_POST['email']);
     $password = $_POST['password'];
 
-    if (empty($usernameOrEmail) || empty($password)) {
+    if (empty($email) || empty($password)) {
         $message = "Please fill in all fields.";
     } else {
-        $stmt = $conn->prepare("SELECT id, username, email, password, role FROM users WHERE username = ? OR email = ?");
-        $stmt->bind_param("ss", $usernameOrEmail, $usernameOrEmail);
+        $stmt = $conn->prepare("SELECT id, name, email, password, role FROM staff WHERE email = ?");
+        $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
+            $staff = $result->fetch_assoc();
 
-            if (password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
+            if (password_verify($password, $staff['password'])) {
+                // Store staff data in session (separate from customer)
+                $_SESSION['staff_id'] = $staff['id'];
+                $_SESSION['staff_name'] = $staff['name'];
+                $_SESSION['staff_email'] = $staff['email'];
+                $_SESSION['staff_role'] = $staff['role'];
+                $_SESSION['staff_login_time'] = time();
 
-                if ($user['role'] === 'admin') {
-                    header("Location: ../admin/dashboard/admin_dashboard.php");
-                } elseif ($user['role'] === 'staff') {
+                if ($staff['role'] === 'delivery') {
+                    header("Location: ../staff/delivery_dashboard.php");
+                } else {
                     header("Location: ../staff/staff_dashboard.php");
                 }
                 exit;
@@ -46,7 +51,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $message = "Incorrect password.";
             }
         } else {
-            $message = "User not found.";
+            $message = "Staff account not found.";
         }
         $stmt->close();
     }
@@ -58,18 +63,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - E-commerce</title>
+    <title>Staff Login - E-commerce</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="login.css">
 </head>
 <body>
     <div class="login-container">
-        <h2>Welcome Back</h2>
+        <h2>Staff Login</h2>
         <?php if (!empty($message)) echo "<div class='error-message'>$message</div>"; ?>
         <form method="post" action="login.php" autocomplete="off" id="loginForm">
             <div class="input-group">
-                <input type="text" name="username_email" id="username_email" required placeholder=" " />
-                <label for="username_email">Username or Email</label>
+                <input type="email" name="email" id="email" required placeholder=" " />
+                <label for="email">Email</label>
             </div>
 
             <div class="input-group">
@@ -81,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <button type="submit" class="login-btn">Login</button>
         </form>
         <div class="bottom-text">
-            Don't have an account? <a href="../admin/register_admin.php">Register</a>
+            Don't have an account? <a href="../staff/register_staff.php">Register</a>
         </div>
     </div>
 

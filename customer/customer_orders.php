@@ -1,14 +1,14 @@
 <?php
-session_name('CUSTOMERSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
+include '../delivery_utils.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'customer') {
-    header("Location: login_customer.php");
-    exit;
-}
+requireCustomer();
 
-$customer_id = $_SESSION['user_id'];
+// Optional: Check session timeout (30 minutes)
+checkSessionTimeout(30);
+
+$customer_id = getCurrentUserId();
 
 $sql = "
     SELECT 
@@ -16,6 +16,13 @@ $sql = "
         o.total_amount, 
         o.order_date,
         o.status,
+        o.delivery_type,
+        o.delivery_address,
+        o.delivery_distance,
+        o.delivery_fee,
+        o.estimated_delivery_time,
+        o.actual_delivery_time,
+        s.name AS delivery_staff_name,
         oi.product_id, 
         oi.quantity, 
         oi.price AS item_price,
@@ -25,6 +32,7 @@ $sql = "
     FROM orders o
     JOIN order_items oi ON o.id = oi.order_id
     JOIN products p ON oi.product_id = p.id
+    LEFT JOIN staff s ON o.delivery_staff_id = s.id
     WHERE o.customer_id = ?
     ORDER BY o.order_date DESC, o.id, oi.id
 ";
@@ -44,6 +52,13 @@ while ($row = $result->fetch_assoc()) {
             'total_amount' => $row['total_amount'],
             'order_date' => $row['order_date'],
             'status' => $row['status'],
+            'delivery_type' => $row['delivery_type'],
+            'delivery_address' => $row['delivery_address'],
+            'delivery_distance' => $row['delivery_distance'],
+            'delivery_fee' => $row['delivery_fee'],
+            'estimated_delivery_time' => $row['estimated_delivery_time'],
+            'actual_delivery_time' => $row['actual_delivery_time'],
+            'delivery_staff_name' => $row['delivery_staff_name'],
             'items' => [],
         ];
     }
@@ -102,6 +117,20 @@ while ($row = $result->fetch_assoc()) {
         .order-header h3 {
             margin: 0;
         }
+        .delivery-info {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #2d89e6;
+        }
+        .delivery-info h4 {
+            margin: 0 0 10px 0;
+            color: #2d89e6;
+        }
+        .delivery-info p {
+            margin: 5px 0;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -124,8 +153,16 @@ while ($row = $result->fetch_assoc()) {
             background: #ffeeba;
             color: #856404;
         }
-        .Shipped {
+        .Processing {
             background: #bee5eb;
+            color: #0c5460;
+        }
+        .Ready for Pickup {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .Out for Delivery {
+            background: #d1ecf1;
             color: #0c5460;
         }
         .Delivered {
@@ -165,6 +202,31 @@ while ($row = $result->fetch_assoc()) {
                     Status: <span class="status <?= htmlspecialchars($order['status']) ?>"><?= htmlspecialchars($order['status']) ?></span>
                 </h3>
             </div>
+
+            <!-- Delivery Information -->
+            <div class="delivery-info">
+                <h4>Delivery Information</h4>
+                <p><strong>Type:</strong> <?= ucfirst($order['delivery_type'] ?? 'Not specified'); ?></p>
+                <?php if ($order['delivery_type'] === 'delivery'): ?>
+                    <p><strong>Address:</strong> <?= htmlspecialchars($order['delivery_address']); ?></p>
+                    <p><strong>Distance:</strong> <?= number_format($order['delivery_distance'], 2); ?> km</p>
+                    <p><strong>Delivery Fee:</strong> ₹<?= number_format($order['delivery_fee'], 2); ?></p>
+                    <?php if ($order['delivery_staff_name']): ?>
+                        <p><strong>Delivery Staff:</strong> <?= htmlspecialchars($order['delivery_staff_name']); ?></p>
+                    <?php endif; ?>
+                    <?php if ($order['estimated_delivery_time']): ?>
+                        <p><strong>Estimated Delivery:</strong> <?= date('d M Y, h:i A', strtotime($order['estimated_delivery_time'])); ?></p>
+                    <?php endif; ?>
+                    <?php if ($order['actual_delivery_time']): ?>
+                        <p><strong>Delivered On:</strong> <?= date('d M Y, h:i A', strtotime($order['actual_delivery_time'])); ?></p>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <p><strong>Pickup Location:</strong> Warehouse in Kochi</p>
+                    <p><strong>Distance:</strong> <?= number_format($order['delivery_distance'], 2); ?> km (from warehouse)</p>
+                    <p><strong>Note:</strong> Please collect your order from our warehouse during business hours.</p>
+                <?php endif; ?>
+            </div>
+
             <table>
                 <thead>
                     <tr>

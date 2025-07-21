@@ -1,12 +1,12 @@
 <?php
-session_name('CUSTOMERSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'customer') {
-    header("Location: login_customer.php");
-    exit;
-}
+// Require customer role to access this page
+requireCustomer();
+
+// Optional: Check session timeout (30 minutes)
+checkSessionTimeout(30);
 ?>
 <!DOCTYPE html>
 <html>
@@ -103,7 +103,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'customer') {
 
 <!-- Header Section -->
 <div class="header">
-    <h2>Welcome, <?php echo htmlspecialchars($_SESSION['username']); ?></h2>
+    <h2>Welcome, <?php echo htmlspecialchars(getCustomerName()); ?></h2>
     <div class="nav-links">
         <a href="customer_cart.php">Cart</a>
         <a href="customer_orders.php">Orders</a>

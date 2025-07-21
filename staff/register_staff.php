@@ -2,9 +2,6 @@
 require_once '../session_manager.php';
 include '../db_connect.php';
 
-// Require product manager role to access this page
-requireProductManager();
-
 // Optional: Check session timeout (30 minutes)
 checkSessionTimeout(30);
 
@@ -13,50 +10,42 @@ $error = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = trim($_POST['name']);
-    $description = trim($_POST['description']);
-    $price = floatval($_POST['price']);
-    $stock = intval($_POST['stock']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    $role = $_POST['role'];
     
-    if (!$name || !$description || $price <= 0 || $stock < 0) {
-        $error = "Please fill in all fields correctly.";
+    // Validation
+    if (!$name || !$email || !$password || !$confirm_password || !$role) {
+        $error = "All fields are required.";
+    } elseif ($password !== $confirm_password) {
+        $error = "Passwords do not match.";
+    } elseif (strlen($password) < 6) {
+        $error = "Password must be at least 6 characters long.";
+    } elseif (!in_array($role, ['product_manager', 'delivery'])) {
+        $error = "Invalid role selected.";
     } else {
-        $image_path = null;
+        // Check if email already exists
+        $stmt = $conn->prepare("SELECT id FROM staff WHERE email = ?");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
         
-        // Handle image upload
-        if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-            $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-            $max_size = 5 * 1024 * 1024; // 5MB
+        if ($result->num_rows > 0) {
+            $error = "Email already registered.";
+        } else {
+            // Hash password and insert new staff member
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             
-            if (in_array($_FILES['image']['type'], $allowed_types) && $_FILES['image']['size'] <= $max_size) {
-                $upload_dir = '../uploads/products/';
-                if (!is_dir($upload_dir)) {
-                    mkdir($upload_dir, 0777, true);
-                }
-                
-                $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-                $file_name = uniqid() . '.' . $file_extension;
-                $image_path = $upload_dir . $file_name;
-                
-                if (move_uploaded_file($_FILES['image']['tmp_name'], $image_path)) {
-                    $image_path = 'uploads/products/' . $file_name;
-                } else {
-                    $error = "Failed to upload image.";
-                }
-            } else {
-                $error = "Invalid image format or size. Please use JPEG, PNG, or GIF under 5MB.";
-            }
-        }
-        
-        if (!$error) {
-            $stmt = $conn->prepare("INSERT INTO products (name, description, price, stock, image) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdis", $name, $description, $price, $stock, $image_path);
+            $stmt = $conn->prepare("INSERT INTO staff (name, email, password, role) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssss", $name, $email, $hashed_password, $role);
             
             if ($stmt->execute()) {
-                $message = "Product added successfully!";
+                $message = "Staff member registered successfully!";
                 // Clear form data
                 $_POST = array();
             } else {
-                $error = "Error adding product: " . $conn->error;
+                $error = "Error registering staff member: " . $conn->error;
             }
         }
     }
@@ -66,7 +55,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Add Product</title>
+  <title>Register Staff</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
@@ -171,7 +160,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     .form-group input,
-    .form-group textarea {
+    .form-group select {
       width: 100%;
       padding: 10px;
       border: 1px solid #ddd;
@@ -180,15 +169,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       font-family: inherit;
     }
 
-    .form-group textarea {
-      resize: vertical;
-      min-height: 100px;
-    }
-
-    .form-group input[type="file"] {
-      padding: 8px;
-      border: 2px dashed #ddd;
-      background: #f9f9f9;
+    .form-group select {
+      background: white;
     }
 
     .btn {
@@ -217,30 +199,44 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
-    .file-info {
-      font-size: 12px;
-      color: #666;
-      margin-top: 5px;
+    .role-info {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      border-left: 4px solid #2d89e6;
+    }
+
+    .role-info h4 {
+      margin: 0 0 10px 0;
+      color: #2d89e6;
+    }
+
+    .role-info ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .role-info li {
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
   <div class="dashboard">
     <aside class="sidebar">
-      <h2>Product Manager Panel</h2>
-      <p>Hello, <?= htmlspecialchars(getCurrentUsername()) ?> <span class="role-badge">Product Manager</span></p>
+      <h2>Staff Registration</h2>
+      <p>Register new staff members</p>
       <ul>
-        <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
-        <li><a href="staff_products.php">Manage Products</a></li>
-        <li><a href="add_product.php">Add Product</a></li>
-        <li><a href="staff_qna.php">Customer Q&A</a></li>
-        <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
+        <li><a href="../authentication/login.php">Staff Login</a></li>
+        <li><a href="../customer/login_customer.php">Customer Login</a></li>
+        <li><a href="../customer/register_customer.php">Customer Registration</a></li>
       </ul>
     </aside>
 
     <main class="main-content">
-      <h2>Add New Product</h2>
-      <p>Add a new product to your catalog.</p>
+      <h2>Register New Staff Member</h2>
+      <p>Create a new staff account with appropriate role.</p>
 
       <?php if ($message): ?>
         <div class="message success"><?php echo htmlspecialchars($message); ?></div>
@@ -251,35 +247,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <?php endif; ?>
 
       <div class="section">
-        <form method="post" enctype="multipart/form-data">
+        <div class="role-info">
+          <h4>Available Roles:</h4>
+          <ul>
+            <li><strong>Product Manager:</strong> Manage products, inventory, and customer Q&A</li>
+            <li><strong>Delivery Staff:</strong> Handle order delivery and pickup management</li>
+          </ul>
+        </div>
+
+        <form method="post">
           <div class="form-group">
-            <label for="name">Product Name *</label>
+            <label for="name">Full Name *</label>
             <input type="text" id="name" name="name" value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>" required>
           </div>
 
           <div class="form-group">
-            <label for="description">Description *</label>
-            <textarea id="description" name="description" required><?php echo isset($_POST['description']) ? htmlspecialchars($_POST['description']) : ''; ?></textarea>
+            <label for="email">Email Address *</label>
+            <input type="email" id="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" required>
           </div>
 
           <div class="form-group">
-            <label for="price">Price (₹) *</label>
-            <input type="number" id="price" name="price" step="0.01" min="0" value="<?php echo isset($_POST['price']) ? htmlspecialchars($_POST['price']) : ''; ?>" required>
+            <label for="password">Password *</label>
+            <input type="password" id="password" name="password" required>
+            <small style="color: #666;">Minimum 6 characters</small>
           </div>
 
           <div class="form-group">
-            <label for="stock">Stock Quantity *</label>
-            <input type="number" id="stock" name="stock" min="0" value="<?php echo isset($_POST['stock']) ? htmlspecialchars($_POST['stock']) : '0'; ?>" required>
+            <label for="confirm_password">Confirm Password *</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
           </div>
 
           <div class="form-group">
-            <label for="image">Product Image</label>
-            <input type="file" id="image" name="image" accept="image/*">
-            <div class="file-info">Accepted formats: JPEG, PNG, GIF. Max size: 5MB</div>
+            <label for="role">Role *</label>
+            <select id="role" name="role" required>
+              <option value="">Select a role</option>
+              <option value="product_manager" <?php echo (isset($_POST['role']) && $_POST['role'] === 'product_manager') ? 'selected' : ''; ?>>Product Manager</option>
+              <option value="delivery" <?php echo (isset($_POST['role']) && $_POST['role'] === 'delivery') ? 'selected' : ''; ?>>Delivery Staff</option>
+            </select>
           </div>
 
-          <button type="submit" class="btn btn-primary">Add Product</button>
-          <a href="staff_products.php" class="btn btn-success" style="margin-left: 10px;">Back to Products</a>
+          <button type="submit" class="btn btn-primary">Register Staff Member</button>
+          <a href="../authentication/login.php" class="btn btn-success" style="margin-left: 10px;">Back to Login</a>
         </form>
       </div>
     </main>

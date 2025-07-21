@@ -2,7 +2,7 @@
 $host = "localhost";
 $user = "root";         // your DB username
 $pass = "";             // your DB password
-$db = "synopsis1";      // your DB name
+$db = "ecommerce_jun19";      // your DB name
 
 $conn = new mysqli($host, $user, $pass, $db);
 

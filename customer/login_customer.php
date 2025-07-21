@@ -1,29 +1,30 @@
 <?php
-session_name('CUSTOMERSESSID');
 session_start();
 include '../db_connect.php';
 
 $message = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $usernameOrEmail = trim($_POST['username_email']);
+    $email = trim($_POST['email']);
     $password = $_POST['password'];
 
-    if (empty($usernameOrEmail) || empty($password)) {
+    if (empty($email) || empty($password)) {
         $message = "Please fill in all fields.";
     } else {
-        $stmt = $conn->prepare("SELECT id, username, email, password, role FROM users WHERE (username = ? OR email = ?) AND role = 'customer'");
-        $stmt->bind_param("ss", $usernameOrEmail, $usernameOrEmail);
+        $stmt = $conn->prepare("SELECT id, name, email, password FROM customers WHERE email = ?");
+        $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
+            $customer = $result->fetch_assoc();
 
-            if (password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
+            if (password_verify($password, $customer['password'])) {
+                // Store customer data in session (separate from staff)
+                $_SESSION['customer_id'] = $customer['id'];
+                $_SESSION['customer_name'] = $customer['name'];
+                $_SESSION['customer_email'] = $customer['email'];
+                $_SESSION['customer_login_time'] = time();
 
                 header("Location: customer_dashboard.php");
                 exit;
@@ -175,8 +176,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php if (!empty($message)) echo "<div class='error-message'>$message</div>"; ?>
         <form method="post" action="" autocomplete="off" id="loginCustomerForm">
             <div class="input-group">
-                <input type="text" name="username_email" id="username_email" required placeholder=" " />
-                <label for="username_email">Username or Email</label>
+                <input type="email" name="email" id="email" required placeholder=" " />
+                <label for="email">Email</label>
             </div>
 
             <div class="input-group">
@@ -197,11 +198,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         const form = document.getElementById('loginCustomerForm');
 
         form.addEventListener('submit', function (e) {
-            const usernameEmail = form.username_email.value.trim();
+            const email = form.email.value.trim();
             const password = form.password.value.trim();
             let errorDiv = document.querySelector('.error-message');
 
-            if (!usernameEmail || !password) {
+            if (!email || !password) {
                 e.preventDefault();
                 if (!errorDiv) {
                     errorDiv = document.createElement('div');

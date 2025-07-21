@@ -1,260 +1,286 @@
 <?php
-session_name('ADMINSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
-    header("Location: ../authentication/login.php");
-    exit;
-}
+// Require product manager role to access this page
+requireProductManager();
 
-$staff_id = $_SESSION['user_id'];
+// Optional: Check session timeout (30 minutes)
+checkSessionTimeout(30);
+
+$staff_id = getCurrentUserId();
+
+$message = '';
+$error = '';
 
 // Handle product deletion
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['delete_id'])) {
-    $delete_id = intval($_POST['delete_id']);
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $product_id = intval($_GET['delete']);
     
-    // First delete any product questions
-    $delete_questions = $conn->prepare("DELETE FROM product_questions WHERE product_id = ?");
-    $delete_questions->bind_param("i", $delete_id);
-    $delete_questions->execute();
+    // Get product image before deletion
+    $stmt = $conn->prepare("SELECT image FROM products WHERE id = ?");
+    $stmt->bind_param("i", $product_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
     
-    // Then delete any order items
-    $delete_order_items = $conn->prepare("DELETE FROM order_items WHERE product_id = ?");
-    $delete_order_items->bind_param("i", $delete_id);
-    $delete_order_items->execute();
-    
-    // Finally delete the product
-    $delete = $conn->prepare("DELETE FROM products WHERE id = ?");
-    $delete->bind_param("i", $delete_id);
-    if ($delete->execute()) {
-        $msg = "Product deleted successfully.";
-        $msg_class = 'msg-success';
-    } else {
-        $msg = "Failed to delete product.";
-        $msg_class = 'msg-error';
+    if ($result->num_rows > 0) {
+        $product = $result->fetch_assoc();
+        
+        // Delete the product
+        $delete_stmt = $conn->prepare("DELETE FROM products WHERE id = ?");
+        $delete_stmt->bind_param("i", $product_id);
+        
+        if ($delete_stmt->execute()) {
+            // Delete the image file if it exists
+            if ($product['image'] && file_exists($product['image'])) {
+                unlink($product['image']);
+            }
+            $message = "Product deleted successfully!";
+        } else {
+            $error = "Failed to delete product.";
+        }
     }
 }
+
+// Fetch all products
+$sql = "SELECT * FROM products ORDER BY created_at DESC";
+$result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Staff Products</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #43cea2, #185a9d);
-            color: #333;
-            min-height: 100vh;
-        }
-        .dashboard {
-            display: flex;
-            width: 100vw;
-            min-height: 100vh;
-        }
-        .sidebar {
-            background: white;
-            padding: 20px;
-            width: 250px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-        .sidebar h2 {
-            margin-bottom: 10px;
-            color: #185a9d;
-        }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
-        }
-        .sidebar li {
-            margin: 10px 0;
-        }
-        .sidebar button, .sidebar a {
-            background: #185a9d;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            cursor: pointer;
-            width: 100%;
-            text-align: left;
-            transition: background 0.3s ease;
-            display: block;
-        }
-        .sidebar button:hover, .sidebar a:hover {
-            background: #0b3d72;
-        }
-        .main-content {
-            flex: 1;
-            padding: 40px;
-            background: rgba(255,255,255,0.95);
-            overflow-y: auto;
-        }
-        .msg {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 16px;
-        }
-        .msg-success {
-            background: #e6f7ff;
-            color: #2d89e6;
-            border: 1px solid #2d89e6;
-        }
-        .msg-error {
-            background: #ffe6e6;
-            color: #d0021b;
-            border: 1px solid #d0021b;
-        }
-        .product-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .product-header h2 {
-            margin: 0;
-            color: #185a9d;
-        }
-        .add-product-btn {
-            background: #2d89e6;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .add-product-btn:hover {
-            background: #1c6dd0;
-        }
-        .products-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background: white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .products-table th, .products-table td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        .products-table th {
-            background: #f5f5f5;
-            font-weight: 600;
-            color: #333;
-        }
-        .products-table tr:hover {
-            background: #f9f9f9;
-        }
-        .action-btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            margin-right: 5px;
-        }
-        .edit-btn {
-            background: #2d89e6;
-            color: white;
-        }
-        .delete-btn {
-            background: #dc3545;
-            color: white;
-        }
-        .edit-btn:hover {
-            background: #1c6dd0;
-        }
-        .delete-btn:hover {
-            background: #c82333;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Product Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+      color: #333;
+    }
+
+    .dashboard {
+      display: flex;
+      width: 100%;
+    }
+
+    .sidebar {
+      background: white;
+      padding: 20px;
+      width: 250px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    }
+
+    .sidebar h2 {
+      margin-bottom: 10px;
+      color: #185a9d;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .sidebar li {
+      margin: 10px 0;
+    }
+
+    .sidebar button, .sidebar a {
+      background: #185a9d;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: background 0.3s ease;
+      display: block;
+    }
+
+    .sidebar button:hover, .sidebar a:hover {
+      background: #0b3d72;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 40px;
+      background: rgba(255,255,255,0.95);
+      overflow-y: auto;
+    }
+
+    .logout-link {
+      margin-top: 20px;
+      display: block;
+      color: red;
+    }
+
+    .role-badge {
+      background: #e8f4fd;
+      color: #185a9d;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    .section {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .section h2 {
+      color: #2d89e6;
+      margin-bottom: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background-color: #2d89e6;
+      color: white;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 2px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary { background: #2d89e6; color: white; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-warning { background: #f39c12; color: white; }
+    .btn-danger { background: #e74c3c; color: white; }
+
+    .message {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    .product-image {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+
+    .add-product-btn {
+      background: #27ae60;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-bottom: 20px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .add-product-btn:hover {
+      background: #229954;
+    }
+  </style>
 </head>
 <body>
-<div class="dashboard">
+  <div class="dashboard">
     <aside class="sidebar">
-        <h2>Staff Panel</h2>
-        <p>Hello, <?= htmlspecialchars($_SESSION['username']) ?></p>
-        <ul>
-            <li><a href="staff_products.php">Products</a></li>
-            <li><a href="view_orders.php">Orders</a></li>
-            <li><a href="staff_qna.php">Q&A</a></li>
-            <li><a class="logout-link" href="../customer/logout.php">Logout</a></li>
-        </ul>
+      <h2>Product Manager Panel</h2>
+      <p>Hello, <?= htmlspecialchars(getCurrentUsername()) ?> <span class="role-badge">Product Manager</span></p>
+      <ul>
+        <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
+        <li><a href="staff_products.php">Manage Products</a></li>
+        <li><a href="add_product.php">Add Product</a></li>
+        <li><a href="staff_qna.php">Customer Q&A</a></li>
+        <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
+      </ul>
     </aside>
-    <main class="main-content">
-        <?php if (isset($msg) && $msg): ?>
-            <div class="msg <?= $msg_class ?>"><?= htmlspecialchars($msg) ?></div>
-        <?php endif; ?>
-        
-        <div class="product-header">
-            <h2>Manage Products</h2>
-            <a href="add_product.php" class="add-product-btn">+ Add New Product</a>
-        </div>
 
-        <table class="products-table">
+    <main class="main-content">
+      <h2>Product Management</h2>
+      <p>Manage your product catalog and inventory.</p>
+
+      <?php if ($message): ?>
+        <div class="message success"><?php echo htmlspecialchars($message); ?></div>
+      <?php endif; ?>
+
+      <?php if ($error): ?>
+        <div class="message error"><?php echo htmlspecialchars($error); ?></div>
+      <?php endif; ?>
+
+      <div class="section">
+        <a href="add_product.php" class="add-product-btn">+ Add New Product</a>
+
+        <h3>All Products</h3>
+        <?php if ($result->num_rows > 0): ?>
+          <table>
             <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Price</th>
-                    <th>Stock</th>
-                    <th>Actions</th>
-                </tr>
+              <tr>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price (₹)</th>
+                <th>Stock</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
-                <?php
-                $sql = "SELECT * FROM products ORDER BY created_at DESC";
-                $result = $conn->query($sql);
-
-                if ($result->num_rows > 0) {
-                    while($row = $result->fetch_assoc()) {
-                        echo "<tr>
-                            <td>{$row['id']}</td>
-                            <td>{$row['name']}</td>
-                            <td>₹{$row['price']}</td>
-                            <td>{$row['stock']}</td>
-                            <td>
-                                <a href='edit_product.php?id={$row['id']}' class='action-btn edit-btn'>Edit</a>
-                                <button onclick='deleteProduct({$row['id']})' class='action-btn delete-btn'>Delete</button>
-                            </td>
-                        </tr>";
-                    }
-                } else {
-                    echo "<tr><td colspan='5' style='text-align: center;'>No products found.</td></tr>";
-                }
-                ?>
+              <?php while ($product = $result->fetch_assoc()): ?>
+                <tr>
+                  <td>
+                    <?php if ($product['image']): ?>
+                      <img src="<?php echo htmlspecialchars($product['image']); ?>" alt="Product Image" class="product-image">
+                    <?php else: ?>
+                      <div style="width: 60px; height: 60px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999;">
+                        No Image
+                      </div>
+                    <?php endif; ?>
+                  </td>
+                  <td><?php echo htmlspecialchars($product['name']); ?></td>
+                  <td><?php echo htmlspecialchars(substr($product['description'], 0, 100)) . (strlen($product['description']) > 100 ? '...' : ''); ?></td>
+                  <td>₹<?php echo number_format($product['price'], 2); ?></td>
+                  <td><?php echo $product['stock']; ?></td>
+                  <td><?php echo date('M d, Y', strtotime($product['created_at'])); ?></td>
+                  <td>
+                    <a href="edit_product.php?id=<?php echo $product['id']; ?>" class="btn btn-warning">Edit</a>
+                    <a href="?delete=<?php echo $product['id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this product?')">Delete</a>
+                  </td>
+                </tr>
+              <?php endwhile; ?>
             </tbody>
-        </table>
+          </table>
+        <?php else: ?>
+          <p>No products found. <a href="add_product.php">Add your first product</a></p>
+        <?php endif; ?>
+      </div>
     </main>
-</div>
-
-<script>
-function deleteProduct(id) {
-    if (confirm('Are you sure you want to delete this product?')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'staff_products.php';
-        
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'delete_id';
-        input.value = id;
-        
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-</script>
+  </div>
 </body>
 </html> 

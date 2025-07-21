@@ -1,6 +1,5 @@
 <?php
-session_name('CUSTOMERSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
 
 if (!isset($_GET['id'])) {
@@ -11,7 +10,7 @@ if (!isset($_GET['id'])) {
 $id = intval($_GET['id']);
 
 // Check if user is logged in customer
-$isLoggedInCustomer = isset($_SESSION['user_id']) && $_SESSION['role'] === 'customer';
+$isLoggedInCustomer = isCustomer();
 
 // Handle Add to Cart
 $cartMessage = '';
@@ -19,7 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_to_cart'])) {
     if (!$isLoggedInCustomer) {
         $cartMessage = "Please login to add products to cart.";
     } else {
-        $customer_id = $_SESSION['user_id'];
+        $customer_id = getCurrentUserId();
 
         // Check if product is already in cart
         $stmt = $conn->prepare("SELECT quantity FROM cart_items WHERE customer_id = ? AND product_id = ?");
@@ -47,7 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_to_cart'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ask_question']) && $isLoggedInCustomer) {
     $question = trim($_POST['question']);
     if (!empty($question)) {
-        $customer_id = $_SESSION['user_id'];
+        $customer_id = getCurrentUserId();
         $insertQ = $conn->prepare("INSERT INTO product_questions (product_id, customer_id, question) VALUES (?, ?, ?)");
         $insertQ->bind_param("iis", $id, $customer_id, $question);
         $insertQ->execute();

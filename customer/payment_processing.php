@@ -1,14 +1,11 @@
 <?php
-session_name('CUSTOMERSESSID');
-session_start();
+require_once '../session_manager.php';
 include '../db_connect.php';
+include '../delivery_utils.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'customer') {
-    header("Location: login_customer.php");
-    exit;
-}
+requireCustomer();
 
-$customer_id = $_SESSION['user_id'];
+$customer_id = getCurrentUserId();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['total_amount'])) {
     header("Location: checkout.php");
@@ -16,6 +13,28 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['total_amount'])) {
 }
 
 $total_amount = floatval($_POST['total_amount']);
+$delivery_fee = floatval($_POST['delivery_fee'] ?? 0);
+$delivery_type = $_POST['delivery_type'] ?? 'pickup';
+$delivery_distance = floatval($_POST['delivery_distance'] ?? 0);
+
+// Validate required data
+if ($total_amount <= 0) {
+    die("Invalid order amount. Please try again.");
+}
+
+// Get customer details for delivery address
+$customer_sql = "SELECT location FROM customers WHERE id = ?";
+$customer_stmt = $conn->prepare($customer_sql);
+$customer_stmt->bind_param("i", $customer_id);
+$customer_stmt->execute();
+$customer_result = $customer_stmt->get_result();
+$customer = $customer_result->fetch_assoc();
+
+if (!$customer) {
+    die("Customer not found. Please log in again.");
+}
+
+$delivery_address = $delivery_type === 'delivery' ? $customer['location'] : 'Warehouse Pickup';
 
 // Fetch cart items for the order
 $sql = "SELECT ci.product_id, ci.quantity, p.price FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.customer_id = ?";
@@ -33,17 +52,24 @@ if ($cart_result->num_rows === 0) {
 $conn->begin_transaction();
 
 try {
-    // Insert order
-    $orderInsert = $conn->prepare("INSERT INTO orders (customer_id, total_amount, order_date) VALUES (?, ?, NOW())");
-    $orderInsert->bind_param("id", $customer_id, $total_amount);
-    $orderInsert->execute();
+    // Insert order with delivery information (status will use default 'Pending')
+    $orderInsert = $conn->prepare("INSERT INTO orders (customer_id, total_amount, order_date, delivery_type, delivery_address, delivery_distance, delivery_fee) VALUES (?, ?, NOW(), ?, ?, ?, ?)");
+    $orderInsert->bind_param("idssdd", $customer_id, $total_amount, $delivery_type, $delivery_address, $delivery_distance, $delivery_fee);
+    
+    if (!$orderInsert->execute()) {
+        throw new Exception("Failed to create order: " . $orderInsert->error);
+    }
+    
     $order_id = $conn->insert_id;
 
     // Insert order items
     $orderItemInsert = $conn->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
+    
     while ($item = $cart_result->fetch_assoc()) {
         $orderItemInsert->bind_param("iiid", $order_id, $item['product_id'], $item['quantity'], $item['price']);
-        $orderItemInsert->execute();
+        if (!$orderItemInsert->execute()) {
+            throw new Exception("Failed to insert order item: " . $orderItemInsert->error);
+        }
     }
 
     // Clear cart
@@ -55,7 +81,8 @@ try {
 
 } catch (Exception $e) {
     $conn->rollback();
-    die("Error processing your order. Please try again.");
+    error_log("Payment processing error: " . $e->getMessage());
+    die("Error processing your order. Please try again. Error: " . $e->getMessage());
 }
 ?>
 

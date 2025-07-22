@@ -2,9 +2,9 @@
 -- This script creates a new database with the updated structure
 
 -- Step 1: Drop the database if it exists, then create a new one
-DROP DATABASE IF EXISTS ecommerce_jul21;
-CREATE DATABASE ecommerce_jul21;
-USE ecommerce_jul21;
+DROP DATABASE IF EXISTS ecommerce_jul22;
+CREATE DATABASE ecommerce_jul22;
+USE ecommerce_jul22;
 
 -- Step 2: Create all tables with proper structure
 
@@ -13,15 +13,20 @@ USE ecommerce_jul21;
 -- =====================================================
 
 -- Customers table
-CREATE TABLE customers (
-    id INT(11) PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    location VARCHAR(255) NOT NULL,
-    latitude DECIMAL(10,8) NULL,
-    longitude DECIMAL(11,8) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE tbl_customer (
+    cust_id INT AUTO_INCREMENT PRIMARY KEY,
+    Cust_fname VARCHAR(10) NOT NULL,
+    Cust_lname VARCHAR(10) NOT NULL,
+    Cust_street VARCHAR(225) NOT NULL,
+    Cust_city VARCHAR(255) NOT NULL,
+    Cust_state VARCHAR(225) NOT NULL,
+    Cust_gender VARCHAR(10) NOT NULL,
+    Cust_ph VARCHAR(10) NOT NULL,
+    Cust_email VARCHAR(225) NOT NULL,
+    Username VARCHAR(225) NOT NULL,
+    Password VARCHAR(500) NOT NULL,
+    latitude VARCHAR(500),     -- Added for storing geolocation latitude
+    longitude VARCHAR(500)     -- Added for storing geolocation longitude
 );
 
 -- Staff table

@@ -5,14 +5,14 @@ include '../db_connect.php';
 $message = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $email = trim($_POST['email']);
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    if (empty($email) || empty($password)) {
+    if (empty($username) || empty($password)) {
         $message = "Please fill in all fields.";
     } else {
-        $stmt = $conn->prepare("SELECT Cust_id, Password FROM tbl_customer WHERE Username = ?");
-        $stmt->bind_param("s", $email);
+        $stmt = $conn->prepare("SELECT Cust_id, Cust_fname, Username, Password FROM tbl_customer WHERE Username = ?");
+        $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -20,10 +20,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $customer = $result->fetch_assoc();
 
             if (password_verify($password, $customer['Password'])) {
-                // Store customer data in session (separate from staff)
                 $_SESSION['customer_id'] = $customer['Cust_id'];
-                $_SESSION['customer_name'] = $customer['name'];
-                $_SESSION['customer_email'] = $customer['email'];
+                $_SESSION['customer_name'] = $customer['Cust_fname'];
+                $_SESSION['customer_username'] = $customer['Username'];
                 $_SESSION['customer_login_time'] = time();
 
                 header("Location: customer_dashboard.php");
@@ -45,90 +44,76 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>Customer Login</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * {
-            margin: 0; padding: 0; box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
         body {
-            background: linear-gradient(135deg, #42a5f5, #478ed1);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background: #f0f2f5;
+            font-family: Arial, sans-serif;
         }
 
-        .login-container {
-            background: #fff;
+        .login-box {
+            width: 350px;
+            margin: 80px auto;
             padding: 40px;
-            border-radius: 16px;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-            animation: fadeIn 1s ease-in-out;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
 
-        @keyframes fadeIn {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        h2 {
+        .login-box h2 {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 30px;
             color: #333;
         }
 
-        .input-group {
+        .user-box {
             position: relative;
-            margin-bottom: 24px;
+            margin-bottom: 25px;
         }
 
-        .input-group input {
+        .user-box input {
             width: 100%;
-            padding: 12px 12px 12px 8px;
+            padding: 12px;
             font-size: 16px;
             border: 1px solid #ccc;
-            border-radius: 8px;
-            background: transparent;
+            border-radius: 6px;
             outline: none;
         }
 
-        .input-group label {
+        .user-box label {
             position: absolute;
-            top: 12px;
+            top: -10px;
             left: 12px;
-            color: #aaa;
-            pointer-events: none;
-            transition: 0.2s ease all;
-            background: white;
-            padding: 0 4px;
-        }
-
-        .input-group input:focus + label,
-        .input-group input:not(:placeholder-shown) + label {
-            top: -8px;
-            left: 8px;
+            background: #fff;
+            padding: 0 5px;
             font-size: 12px;
-            color: #333;
+            color: #666;
         }
 
-        .login-btn {
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            cursor: pointer;
+        }
+
+        .button-box {
+            text-align: center;
+        }
+
+        .button-box button {
             width: 100%;
             padding: 12px;
             background: #2d89e6;
-            color: white;
-            font-weight: bold;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 16px;
             cursor: pointer;
             transition: background 0.3s ease;
         }
 
-        .login-btn:hover {
-            background: #1c6dd0;
+        .button-box button:hover {
+            background: #206cc2;
         }
 
         .bottom-text {
@@ -143,51 +128,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         .error-message {
-            color: #b00020;
-            background-color: #fdd;
+            background: #ffefef;
+            color: #c0392b;
             padding: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #c0392b;
             border-radius: 5px;
-            margin-bottom: 15px;
-            text-align: center;
+            animation: shake 0.2s 2;
         }
 
-        @media (max-width: 500px) {
-            .login-container {
-                padding: 20px;
-                margin: 0 10px;
-            }
-        }
-
-        .toggle-btn {
-            margin-bottom: 15px;
-            background: none;
-            border: none;
-            color: #2d89e6;
-            cursor: pointer;
-            font-size: 14px;
-            text-align: right;
-            width: 100%;
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
+    <div class="login-box">
         <h2>Customer Login</h2>
-        <?php if (!empty($message)) echo "<div class='error-message'>$message</div>"; ?>
-        <form method="post" action="" autocomplete="off" id="loginCustomerForm">
-            <div class="input-group">
-                <input type="email" name="email" id="email" required placeholder=" " />
-                <label for="email">Email</label>
+        <?php if (!empty($message)) : ?>
+            <div class="error-message"><?php echo $message; ?></div>
+        <?php endif; ?>
+        <form method="POST" id="loginCustomerForm">
+            <div class="user-box">
+                <input type="text" name="username" id="username" required placeholder=" ">
+                <label for="username">Username</label>
             </div>
-
-            <div class="input-group">
-                <input type="password" name="password" id="password" required placeholder=" " />
+            <div class="user-box">
+                <input type="password" name="password" id="password" required placeholder=" ">
                 <label for="password">Password</label>
+                <span class="toggle-password" onclick="togglePassword()">👁️</span>
             </div>
-
-            <button type="button" class="toggle-btn" onclick="togglePassword()">Show/Hide Password</button>
-
-            <input type="submit" value="Login" class="login-btn">
+            <div class="button-box">
+                <button type="submit">Login</button>
+            </div>
         </form>
         <div class="bottom-text">
             New customer? <a href="register_customer.php">Register here</a>
@@ -196,13 +173,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
         const form = document.getElementById('loginCustomerForm');
-
         form.addEventListener('submit', function (e) {
-            const email = form.email.value.trim();
+            const username = form.username.value.trim();
             const password = form.password.value.trim();
             let errorDiv = document.querySelector('.error-message');
 
-            if (!email || !password) {
+            if (!username || !password) {
                 e.preventDefault();
                 if (!errorDiv) {
                     errorDiv = document.createElement('div');

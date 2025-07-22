@@ -13,16 +13,15 @@ $error = '';
 $product = null;
 
 // Get product ID from URL
-$product_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$product_id = isset($_GET['id']) ? $_GET['id'] : '';
 
-if ($product_id <= 0) {
+if (!$product_id) {
     header("Location: staff_products.php");
     exit;
 }
 
-// Fetch product details
-$stmt = $conn->prepare("SELECT * FROM products WHERE id = ?");
-$stmt->bind_param("i", $product_id);
+$stmt = $conn->prepare("SELECT * FROM tbl_item WHERE Item_id = ?");
+$stmt->bind_param("s", $product_id);
 $stmt->execute();
 $result = $stmt->get_result();
 $product = $result->fetch_assoc();

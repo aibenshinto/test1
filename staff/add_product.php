@@ -12,7 +12,6 @@ $message = '';
 $error = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $item_id = strtoupper(trim($_POST['item_id']));
     $item_name = trim($_POST['item_name']);
     $item_desc = trim($_POST['item_desc']);
     $item_brand = trim($_POST['item_brand']);
@@ -23,11 +22,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $item_rating = intval($_POST['item_rating']);
     $category_id = intval($_POST['category_id']);
     
-    if (!$item_id || !$item_name || !$item_desc || !$item_brand || !$item_model || $item_rate <= 0 || !$item_quality || $item_qty < 0 || $item_rating < 0 || $item_rating > 5 || $category_id <= 0) {
+    if (!$item_name || !$item_desc || !$item_brand || !$item_model || $item_rate <= 0 || !$item_quality || $item_qty < 0 || $item_rating < 0 || $item_rating > 5 || $category_id <= 0) {
         $error = "Please fill in all fields correctly.";
-    } elseif (!preg_match('/^[A-Z0-9]{6}$/', $item_id)) {
-        $error = "Item ID must be 6 uppercase letters or digits.";
-    } else {
+    }
+     else {
         $item_image_path = null;
         
         // Handle image upload
@@ -54,10 +52,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error = "Invalid image format or size. Please use JPEG, PNG, or GIF under 5MB.";
             }
         }
+
+        $result = $conn->query("SELECT Item_id FROM tbl_item ORDER BY Item_id DESC LIMIT 1");
+
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $last_id = $row['Item_id'];
+    $num = intval(substr($last_id, 3)); // Get number after 'ITM'
+    $new_num = $num + 1;
+    $item_id = 'ITM' . str_pad($new_num, 3, '0', STR_PAD_LEFT);
+} else {
+    $item_id = 'ITM001'; // First ID if table is empty
+}
         
         if (!$error) {
             $stmt = $conn->prepare("INSERT INTO tbl_item (Item_id, Cat_id, Item_name, Item_desc, Item_brand, Item_model, Item_rate, Item_quality, Item_qty, Item_image, Item_rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sisssssisisi", $item_id, $category_id, $item_name, $item_desc, $item_brand, $item_model, $item_rate, $item_quality, $item_qty, $item_image_path, $item_rating);
+            $stmt->bind_param("sisssssissi", $item_id, $category_id, $item_name, $item_desc, $item_brand, $item_model, $item_rate, $item_quality, $item_qty, $item_image_path, $item_rating);
             
             if ($stmt->execute()) {
                 $message = "Item added successfully!";
@@ -264,10 +274,6 @@ $categories_result = $conn->query("SELECT * FROM categories ORDER BY cat_name");
 
       <div class="section">
         <form method="post" enctype="multipart/form-data">
-          <div class="form-group">
-            <label for="item_id">Item ID *</label>
-            <input type="text" id="item_id" name="item_id" maxlength="6" value="<?php echo isset($_POST['item_id']) ? htmlspecialchars($_POST['item_id']) : ''; ?>" required>
-          </div>
           <div class="form-group">
             <label for="item_name">Item Name *</label>
             <input type="text" id="item_name" name="item_name" value="<?php echo isset($_POST['item_name']) ? htmlspecialchars($_POST['item_name']) : ''; ?>" required>

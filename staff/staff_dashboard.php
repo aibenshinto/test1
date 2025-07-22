@@ -144,7 +144,7 @@ $staff_name = getCurrentUsername();
         
         <?php
         // Fetch key metrics
-        $total_customers = $conn->query("SELECT COUNT(*) as count FROM customers")->fetch_assoc()['count'];
+        $total_customers = $conn->query("SELECT COUNT(*) as count FROM tbl_customer")->fetch_assoc()['count'];
         $total_products = $conn->query("SELECT COUNT(*) as count FROM tbl_item")->fetch_assoc()['count'];
         $total_orders = $conn->query("SELECT COUNT(*) as count FROM orders")->fetch_assoc()['count'];
         $pending_orders = $conn->query("SELECT COUNT(*) as count FROM orders WHERE status = 'Pending'")->fetch_assoc()['count'];
@@ -152,12 +152,13 @@ $staff_name = getCurrentUsername();
 
         // Fetch recent orders
         $recent_orders = $conn->query("
-            SELECT o.id, o.order_date, o.total_amount, c.name as customer_name, o.status 
+            SELECT o.id, o.order_date, o.total_amount, CONCAT(c.Cust_fname, ' ', c.Cust_lname) as customer_name, o.status 
             FROM orders o 
-            JOIN customers c ON o.customer_id = c.id 
+            JOIN tbl_customer c ON o.customer_id = c.cust_id 
             ORDER BY o.order_date DESC 
             LIMIT 5
         ");
+
 
         // Fetch top-selling products
         $top_products = $conn->query("
@@ -286,7 +287,7 @@ $staff_name = getCurrentUsername();
             document.getElementById('mainContent').innerHTML = html;
           })
           .catch(error => {
-            document.getElementById('mainContent').innerHTML = `<p>Error: ${error.message}</p>`;
+            document.getElementById('mainContent').innerHTML = <p>Error: ${error.message}</p>;
           });
       }
     }

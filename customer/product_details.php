@@ -3,11 +3,11 @@ require_once '../session_manager.php';
 include '../db_connect.php';
 
 if (!isset($_GET['id'])) {
-    echo "Product not found.";
+    echo "Item not found.";
     exit;
 }
 
-$id = intval($_GET['id']);
+$id = $_GET['id'];
 
 // Check if user is logged in customer
 $isLoggedInCustomer = isCustomer();
@@ -21,21 +21,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_to_cart'])) {
         $customer_id = getCurrentUserId();
 
         // Check if product is already in cart
-        $stmt = $conn->prepare("SELECT quantity FROM cart_items WHERE customer_id = ? AND product_id = ?");
-        $stmt->bind_param("ii", $customer_id, $id);
+        $stmt = $conn->prepare("SELECT quantity FROM cart_items WHERE customer_id = ? AND item_id = ?");
+        $stmt->bind_param("is", $customer_id, $id);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows > 0) {
             $row = $result->fetch_assoc();
             $new_quantity = $row['quantity'] + 1;
-            $update = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE customer_id = ? AND product_id = ?");
-            $update->bind_param("iii", $new_quantity, $customer_id, $id);
+            $update = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE customer_id = ? AND item_id = ?");
+            $update->bind_param("iis", $new_quantity, $customer_id, $id);
             $update->execute();
             $cartMessage = "Product quantity updated in your cart!";
         } else {
-            $insert = $conn->prepare("INSERT INTO cart_items (customer_id, product_id, quantity) VALUES (?, ?, 1)");
-            $insert->bind_param("ii", $customer_id, $id);
+            $insert = $conn->prepare("INSERT INTO cart_items (customer_id, item_id, quantity) VALUES (?, ?, 1)");
+            $insert->bind_param("is", $customer_id, $id);
             $insert->execute();
             $cartMessage = "Product added to your cart!";
         }
@@ -47,20 +47,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ask_question']) && $is
     $question = trim($_POST['question']);
     if (!empty($question)) {
         $customer_id = getCurrentUserId();
-        $insertQ = $conn->prepare("INSERT INTO product_questions (product_id, customer_id, question) VALUES (?, ?, ?)");
-        $insertQ->bind_param("iis", $id, $customer_id, $question);
+        $insertQ = $conn->prepare("INSERT INTO product_questions (item_id, customer_id, question) VALUES (?, ?, ?)");
+        $insertQ->bind_param("sis", $id, $customer_id, $question);
         $insertQ->execute();
     }
 }
 
-// Fetch product details
-$stmt = $conn->prepare("SELECT * FROM products WHERE id = ?");
-$stmt->bind_param("i", $id);
+// Fetch item details
+$stmt = $conn->prepare("SELECT i.*, c.cat_name FROM tbl_item i LEFT JOIN categories c ON i.Cat_id = c.cat_id WHERE i.Item_id = ?");
+$stmt->bind_param("s", $id);
 $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
-    echo "Product not found.";
+    echo "Item not found.";
     exit;
 }
 
@@ -70,7 +70,7 @@ $product = $result->fetch_assoc();
 <!DOCTYPE html>
 <html>
 <head>
-    <title><?php echo htmlspecialchars($product['name']); ?> - Details</title>
+    <title><?php echo htmlspecialchars($product['Item_name']); ?> - Details</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -139,10 +139,24 @@ $product = $result->fetch_assoc();
 <body>
 
 <div class="product-details">
-    <img src="<?php echo htmlspecialchars($product['image']); ?>" alt="Product Image">
-    <h2><?php echo htmlspecialchars($product['name']); ?></h2>
-    <div class="price">₹<?php echo htmlspecialchars($product['price']); ?></div>
-    <div class="stock">Stock: <?php echo htmlspecialchars($product['stock']); ?></div>
+    <img src="<?php echo htmlspecialchars('../'.$product['Item_image']); ?>" alt="Item Image">
+    <h2><?php echo htmlspecialchars($product['Item_name']); ?></h2>
+    <p><strong>Category:</strong> <?php echo htmlspecialchars($product['cat_name'] ?? 'N/A'); ?></p>
+    <p><strong>Brand:</strong> <?php echo htmlspecialchars($product['Item_brand']); ?></p>
+    <p><strong>Model:</strong> <?php echo htmlspecialchars($product['Item_model']); ?></p>
+    <p><strong>Quality:</strong> <?php echo htmlspecialchars($product['Item_quality']); ?></p>
+    <div class="price">₹<?php echo htmlspecialchars($product['Item_rate']); ?></div>
+    <div class="stock">Stock: <?php echo htmlspecialchars($product['Item_qty']); ?></div>
+
+    <!-- Rating Section -->
+    <div style="margin: 18px 0 10px 0; padding: 12px; background: #f8f8f8; border-radius: 8px; font-size: 22px; color: #f39c12;">
+        <strong>Rating:</strong> 
+        <?php 
+            $rating = intval($product['Item_rating']);
+            for ($i = 0; $i < $rating; $i++) echo '★';
+            for ($i = 0; $i < 5 - $rating; $i++) echo '✩';
+        ?>
+    </div>
 
     <?php if ($cartMessage !== ''): ?>
         <div class="message"><?php echo $cartMessage; ?></div>
@@ -152,8 +166,8 @@ $product = $result->fetch_assoc();
         <form method="post">
             <button type="submit" name="add_to_cart">Add to Cart</button>
         </form>
-        <a href="checkout_single.php?id=<?php echo $product['id']; ?>">Buy Now</a>
-        <a href="product_qna.php?id=<?php echo $product['id']; ?>" style="background: #f39c12;">Q&A</a>
+        <a href="checkout_single.php?id=<?php echo $product['Item_id']; ?>">Buy Now</a>
+        <a href="product_qna.php?id=<?php echo $product['Item_id']; ?>" style="background: #f39c12;">Q&A</a>
     </div>
 
     <br><a href="customer_dashboard.php">← Back to Dashboard</a>

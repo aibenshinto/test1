@@ -10,9 +10,9 @@ checkSessionTimeout(30);
 $customer_id = getCurrentUserId();
 
 // Fetch all cart items for this customer
-$sql = "SELECT ci.quantity, p.id AS product_id, p.name, p.price, p.image, p.stock 
+$sql = "SELECT ci.quantity, i.Item_id, i.Item_name, i.Item_rate, i.Item_image, i.Item_qty 
         FROM cart_items ci
-        JOIN products p ON ci.product_id = p.id
+        JOIN tbl_item i ON ci.item_id = i.Item_id
         WHERE ci.customer_id = ?";
 
 $stmt = $conn->prepare($sql);
@@ -23,17 +23,17 @@ $result = $stmt->get_result();
 // Handle update quantities or remove items (optional)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['update_cart'])) {
-        foreach ($_POST['quantities'] as $product_id => $quantity) {
+        foreach ($_POST['quantities'] as $item_id => $quantity) {
             $quantity = intval($quantity);
             if ($quantity < 1) {
                 // Remove from cart if quantity less than 1
-                $delStmt = $conn->prepare("DELETE FROM cart_items WHERE customer_id = ? AND product_id = ?");
-                $delStmt->bind_param("ii", $customer_id, $product_id);
+                $delStmt = $conn->prepare("DELETE FROM cart_items WHERE customer_id = ? AND item_id = ?");
+                $delStmt->bind_param("is", $customer_id, $item_id);
                 $delStmt->execute();
             } else {
                 // Update quantity
-                $updateStmt = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE customer_id = ? AND product_id = ?");
-                $updateStmt->bind_param("iii", $quantity, $customer_id, $product_id);
+                $updateStmt = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE customer_id = ? AND item_id = ?");
+                $updateStmt->bind_param("iis", $quantity, $customer_id, $item_id);
                 $updateStmt->execute();
             }
         }
@@ -125,23 +125,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <th>Quantity</th>
         <th>Total</th>
     </tr>
-    <?php 
-    $grand_total = 0;
-    while ($row = $result->fetch_assoc()): 
-        $total_price = $row['price'] * $row['quantity'];
-        $grand_total += $total_price;
-    ?>
-    <tr>
-        <td><?php echo htmlspecialchars($row['name']); ?></td>
-        <td><img src="<?php echo htmlspecialchars($row['image']); ?>" alt="Product Image"></td>
-        <td>₹<?php echo number_format($row['price'], 2); ?></td>
-        <td>
-            <input type="number" name="quantities[<?php echo $row['product_id']; ?>]" value="<?php echo $row['quantity']; ?>" min="0">
-            <small>(Set 0 to remove)</small>
-        </td>
-        <td>₹<?php echo number_format($total_price, 2); ?></td>
-    </tr>
+    <tbody>
+    <?php while ($item = $result->fetch_assoc()): ?>
+        <tr>
+            <td>
+                <img src="../<?php echo htmlspecialchars($item['Item_image']); ?>" alt="Item Image" class="product-image">
+            </td>
+            <td><?php echo htmlspecialchars($item['Item_name']); ?></td>
+            <td>₹<?php echo number_format($item['Item_rate'], 2); ?></td>
+            <td>
+                <form method="post" class="quantity-form">
+                    <input type="number" name="quantities[<?php echo $item['Item_id']; ?>]" value="<?php echo $item['quantity']; ?>" min="0" class="quantity-input">
+                </form>
+            </td>
+            <td>₹<?php echo number_format($item['Item_rate'] * $item['quantity'], 2); ?></td>
+        </tr>
     <?php endwhile; ?>
+    </tbody>
     <tr>
         <th colspan="4" style="text-align:right;">Grand Total:</th>
         <th>₹<?php echo number_format($grand_total, 2); ?></th>

@@ -41,7 +41,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['staff_role'] = $staff['role'];
                 $_SESSION['staff_login_time'] = time();
 
-                if ($staff['role'] === 'delivery') {
+                if ($staff['role'] === 'admin') {
+                    header("Location: ../admin/staff_management.php");
+                } elseif ($staff['role'] === 'delivery') {
                     header("Location: ../staff/delivery_dashboard.php");
                 } else {
                     header("Location: ../staff/staff_dashboard.php");

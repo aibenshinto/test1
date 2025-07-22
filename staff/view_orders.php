@@ -35,13 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id']) && isset(
     }
 }
 
-// Fetch all orders with customer and product details
-$sql = "SELECT o.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
-               GROUP_CONCAT(CONCAT(p.name, ' (', oi.quantity, ')') SEPARATOR ', ') as products
+// Fetch all orders with customer and item details
+$sql = "SELECT o.*, c.name as customer_name, c.email as customer_email,
+               GROUP_CONCAT(CONCAT(i.Item_name, ' (', oi.quantity, ')') SEPARATOR ', ') as items
         FROM orders o
         JOIN customers c ON o.customer_id = c.id
         JOIN order_items oi ON o.id = oi.order_id
-        JOIN products p ON oi.product_id = p.id
+        JOIN tbl_item i ON oi.item_id = i.Item_id
         GROUP BY o.id
         ORDER BY o.order_date DESC";
 
@@ -254,7 +254,7 @@ $result = $conn->query($sql);
                       <?php echo htmlspecialchars($order['customer_phone']); ?>
                     </div>
                   </td>
-                  <td><?php echo htmlspecialchars($order['products']); ?></td>
+                  <td><?php echo htmlspecialchars($order['items']); ?></td>
                   <td>₹<?php echo number_format($order['total_amount'], 2); ?></td>
                   <td><?php echo ucfirst($order['delivery_type']); ?></td>
                   <td class="status-<?php echo strtolower($order['status']); ?>">

@@ -12,15 +12,23 @@ $message = '';
 $error = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $name = trim($_POST['name']);
-    $description = trim($_POST['description']);
-    $price = floatval($_POST['price']);
-    $stock = intval($_POST['stock']);
+    $item_id = strtoupper(trim($_POST['item_id']));
+    $item_name = trim($_POST['item_name']);
+    $item_desc = trim($_POST['item_desc']);
+    $item_brand = trim($_POST['item_brand']);
+    $item_model = trim($_POST['item_model']);
+    $item_rate = floatval($_POST['item_rate']);
+    $item_quality = trim($_POST['item_quality']);
+    $item_qty = intval($_POST['item_qty']);
+    $item_rating = intval($_POST['item_rating']);
+    $category_id = intval($_POST['category_id']);
     
-    if (!$name || !$description || $price <= 0 || $stock < 0) {
+    if (!$item_id || !$item_name || !$item_desc || !$item_brand || !$item_model || $item_rate <= 0 || !$item_quality || $item_qty < 0 || $item_rating < 0 || $item_rating > 5 || $category_id <= 0) {
         $error = "Please fill in all fields correctly.";
+    } elseif (!preg_match('/^[A-Z0-9]{6}$/', $item_id)) {
+        $error = "Item ID must be 6 uppercase letters or digits.";
     } else {
-        $image_path = null;
+        $item_image_path = null;
         
         // Handle image upload
         if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
@@ -38,7 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $image_path = $upload_dir . $file_name;
                 
                 if (move_uploaded_file($_FILES['image']['tmp_name'], $image_path)) {
-                    $image_path = 'uploads/products/' . $file_name;
+                    $item_image_path = 'uploads/products/' . $file_name;
                 } else {
                     $error = "Failed to upload image.";
                 }
@@ -48,19 +56,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         if (!$error) {
-            $stmt = $conn->prepare("INSERT INTO products (name, description, price, stock, image) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdis", $name, $description, $price, $stock, $image_path);
+            $stmt = $conn->prepare("INSERT INTO tbl_item (Item_id, Cat_id, Item_name, Item_desc, Item_brand, Item_model, Item_rate, Item_quality, Item_qty, Item_image, Item_rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sisssssisisi", $item_id, $category_id, $item_name, $item_desc, $item_brand, $item_model, $item_rate, $item_quality, $item_qty, $item_image_path, $item_rating);
             
             if ($stmt->execute()) {
-                $message = "Product added successfully!";
-                // Clear form data
+                $message = "Item added successfully!";
                 $_POST = array();
             } else {
-                $error = "Error adding product: " . $conn->error;
+                $error = "Error adding item: " . $conn->error;
             }
         }
     }
 }
+
+// Fetch categories for the dropdown
+$categories_result = $conn->query("SELECT * FROM categories ORDER BY cat_name");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -232,6 +242,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <ul>
         <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
         <li><a href="staff_products.php">Manage Products</a></li>
+        <li><a href="vendor_management.php">Manage Vendors</a></li>
+        <li><a href="purchase_management.php">Manage Purchases</a></li>
         <li><a href="add_product.php">Add Product</a></li>
         <li><a href="staff_qna.php">Customer Q&A</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
@@ -253,33 +265,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <div class="section">
         <form method="post" enctype="multipart/form-data">
           <div class="form-group">
-            <label for="name">Product Name *</label>
-            <input type="text" id="name" name="name" value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>" required>
+            <label for="item_id">Item ID *</label>
+            <input type="text" id="item_id" name="item_id" maxlength="6" value="<?php echo isset($_POST['item_id']) ? htmlspecialchars($_POST['item_id']) : ''; ?>" required>
           </div>
-
           <div class="form-group">
-            <label for="description">Description *</label>
-            <textarea id="description" name="description" required><?php echo isset($_POST['description']) ? htmlspecialchars($_POST['description']) : ''; ?></textarea>
+            <label for="item_name">Item Name *</label>
+            <input type="text" id="item_name" name="item_name" value="<?php echo isset($_POST['item_name']) ? htmlspecialchars($_POST['item_name']) : ''; ?>" required>
           </div>
-
           <div class="form-group">
-            <label for="price">Price (₹) *</label>
-            <input type="number" id="price" name="price" step="0.01" min="0" value="<?php echo isset($_POST['price']) ? htmlspecialchars($_POST['price']) : ''; ?>" required>
+            <label for="item_desc">Description *</label>
+            <textarea id="item_desc" name="item_desc" required><?php echo isset($_POST['item_desc']) ? htmlspecialchars($_POST['item_desc']) : ''; ?></textarea>
           </div>
-
-          <div class="form-group">
-            <label for="stock">Stock Quantity *</label>
-            <input type="number" id="stock" name="stock" min="0" value="<?php echo isset($_POST['stock']) ? htmlspecialchars($_POST['stock']) : '0'; ?>" required>
+            <div class="form-group">
+            <label for="item_brand">Brand *</label>
+            <input type="text" id="item_brand" name="item_brand" value="<?php echo isset($_POST['item_brand']) ? htmlspecialchars($_POST['item_brand']) : ''; ?>" required>
           </div>
-
+            <div class="form-group">
+            <label for="item_model">Model *</label>
+            <input type="text" id="item_model" name="item_model" value="<?php echo isset($_POST['item_model']) ? htmlspecialchars($_POST['item_model']) : ''; ?>" required>
+          </div>
           <div class="form-group">
-            <label for="image">Product Image</label>
+            <label for="item_rate">Price (₹) *</label>
+            <input type="number" id="item_rate" name="item_rate" step="0.01" min="0" value="<?php echo isset($_POST['item_rate']) ? htmlspecialchars($_POST['item_rate']) : ''; ?>" required>
+          </div>
+            <div class="form-group">
+            <label for="item_quality">Quality *</label>
+            <input type="text" id="item_quality" name="item_quality" value="<?php echo isset($_POST['item_quality']) ? htmlspecialchars($_POST['item_quality']) : ''; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="item_qty">Stock Quantity *</label>
+            <input type="number" id="item_qty" name="item_qty" min="0" value="<?php echo isset($_POST['item_qty']) ? htmlspecialchars($_POST['item_qty']) : '0'; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="item_rating">Rating (0-5) *</label>
+            <input type="number" id="item_rating" name="item_rating" min="0" max="5" value="<?php echo isset($_POST['item_rating']) ? htmlspecialchars($_POST['item_rating']) : '0'; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="category_id">Category *</label>
+            <select id="category_id" name="category_id" required>
+              <option value="">Select a category...</option>
+              <?php while ($category = $categories_result->fetch_assoc()): ?>
+                <option value="<?php echo $category['cat_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $category['cat_id']) ? 'selected' : ''; ?>>
+                  <?php echo htmlspecialchars($category['cat_name']); ?>
+                </option>
+              <?php endwhile; ?>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="image">Item Image</label>
             <input type="file" id="image" name="image" accept="image/*">
             <div class="file-info">Accepted formats: JPEG, PNG, GIF. Max size: 5MB</div>
           </div>
-
-          <button type="submit" class="btn btn-primary">Add Product</button>
-          <a href="staff_products.php" class="btn btn-success" style="margin-left: 10px;">Back to Products</a>
+          <button type="submit" class="btn btn-primary">Add Item</button>
+          <a href="staff_products.php" class="btn btn-success" style="margin-left: 10px;">Back to Items</a>
         </form>
       </div>
     </main>

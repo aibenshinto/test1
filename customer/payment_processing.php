@@ -37,7 +37,7 @@ if (!$customer) {
 $delivery_address = $delivery_type === 'delivery' ? $customer['location'] : 'Warehouse Pickup';
 
 // Fetch cart items for the order
-$sql = "SELECT ci.product_id, ci.quantity, p.price FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.customer_id = ?";
+$sql = "SELECT ci.item_id, ci.quantity, i.Item_rate FROM cart_items ci JOIN tbl_item i ON ci.item_id = i.Item_id WHERE ci.customer_id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $customer_id);
 $stmt->execute();
@@ -63,10 +63,10 @@ try {
     $order_id = $conn->insert_id;
 
     // Insert order items
-    $orderItemInsert = $conn->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
+    $orderItemInsert = $conn->prepare("INSERT INTO order_items (order_id, item_id, quantity, price) VALUES (?, ?, ?, ?)");
     
     while ($item = $cart_result->fetch_assoc()) {
-        $orderItemInsert->bind_param("iiid", $order_id, $item['product_id'], $item['quantity'], $item['price']);
+        $orderItemInsert->bind_param("isid", $order_id, $item['item_id'], $item['quantity'], $item['Item_rate']);
         if (!$orderItemInsert->execute()) {
             throw new Exception("Failed to insert order item: " . $orderItemInsert->error);
         }

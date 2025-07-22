@@ -30,10 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['question_id']) && iss
     }
 }
 
-// Fetch all questions with product and customer details
-$sql = "SELECT pq.*, p.name as product_name, c.name as customer_name, c.email as customer_email, s.name as staff_name
+// Fetch all questions with item and customer details
+$sql = "SELECT pq.*, i.Item_name as item_name, c.name as customer_name, c.email as customer_email, s.name as staff_name
         FROM product_questions pq
-        JOIN products p ON pq.product_id = p.id
+        JOIN tbl_item i ON pq.item_id = i.Item_id
         JOIN customers c ON pq.customer_id = c.id
         LEFT JOIN staff s ON pq.staff_id = s.id
         ORDER BY pq.created_at DESC";
@@ -266,7 +266,7 @@ $result = $conn->query($sql);
               </div>
               
               <div class="question-meta">
-                <strong>Product:</strong> <?php echo htmlspecialchars($question['product_name']); ?> |
+                <strong>Item:</strong> <?php echo htmlspecialchars($question['item_name']); ?> |
                 <strong>Customer:</strong> <?php echo htmlspecialchars($question['customer_name']); ?> 
                 (<?php echo htmlspecialchars($question['customer_email']); ?>) |
                 <strong>Asked:</strong> <?php echo date('M d, Y H:i', strtotime($question['created_at'])); ?>

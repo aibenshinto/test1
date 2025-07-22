@@ -1,8 +1,8 @@
 <?php
-$host = "localhost";
-$user = "root";         // your DB username
-$pass = "";             // your DB password
-$db = "ecommerce_jun19";      // your DB name
+$host = "localhost";        // your host
+$user = "root";             // your username
+$pass = "";                 // your password
+$db = "ecommerce_jul21";      // your DB name
 
 $conn = new mysqli($host, $user, $pass, $db);
 

@@ -10,6 +10,7 @@ checkSessionTimeout(30);
 
 $customer_id = getCurrentUserId();
 
+// Fetch all orders with their items
 $sql = "
     SELECT 
         o.id AS order_id, 
@@ -23,15 +24,15 @@ $sql = "
         o.estimated_delivery_time,
         o.actual_delivery_time,
         s.name AS delivery_staff_name,
-        oi.product_id, 
+        oi.item_id, 
         oi.quantity, 
         oi.price AS item_price,
-        p.name AS product_name, 
-        p.image AS product_image,
+        i.Item_name AS item_name, 
+        i.Item_image AS item_image,
         oi.created_at AS item_created_at
     FROM orders o
     JOIN order_items oi ON o.id = oi.order_id
-    JOIN products p ON oi.product_id = p.id
+    JOIN tbl_item i ON oi.item_id = i.Item_id
     LEFT JOIN staff s ON o.delivery_staff_id = s.id
     WHERE o.customer_id = ?
     ORDER BY o.order_date DESC, o.id, oi.id
@@ -64,8 +65,8 @@ while ($row = $result->fetch_assoc()) {
     }
 
     $orders[$order_id]['items'][] = [
-        'product_name' => $row['product_name'],
-        'product_image' => $row['product_image'],
+        'item_name' => $row['item_name'],
+        'item_image' => $row['item_image'],
         'quantity' => $row['quantity'],
         'item_price' => $row['item_price'],
         'created_at' => $row['item_created_at'] ?? $row['order_date'],  // fallback
@@ -240,12 +241,13 @@ while ($row = $result->fetch_assoc()) {
                 <?php foreach ($order['items'] as $item): ?>
                     <tr>
                         <td>
-                            <img src="<?= htmlspecialchars($item['product_image']) ?>" alt="Product Image" class="product-img" />
-                            <?= htmlspecialchars($item['product_name']) ?>
+                            <img src="../<?php echo htmlspecialchars($item['item_image']); ?>" alt="Item Image" class="product-img" />
+                            <div class="product-info">
+                                <div><strong><?php echo htmlspecialchars($item['item_name']); ?></strong></div>
+                                <div>Qty: <?php echo $item['quantity']; ?></div>
+                                <div>Price: ₹<?php echo number_format($item['item_price'], 2); ?></div>
+                            </div>
                         </td>
-                        <td><?= $item['quantity'] ?></td>
-                        <td>₹<?= number_format($item['item_price'], 2) ?></td>
-                        <td><?= date('d M Y, h:i A', strtotime($item['created_at'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

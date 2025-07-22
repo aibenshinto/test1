@@ -82,7 +82,7 @@ A comprehensive e-commerce platform with customer and staff management, product 
    ```
 4. **Configure Database Connection**:
    - Edit `db_connect.php` if needed
-   - Default: localhost, root, no password, database: ecommerce_jun19
+   - Default: localhost, root, no password, database: ecommerce_jul21
 5. **Access the Application**:
    - Main URL: `http://localhost/test1/`
    - Customer registration: `http://localhost/test1/customer/register_customer.php`

@@ -68,6 +68,14 @@ function isProductManager() {
 }
 
 /**
+ * Check if user is an admin
+ * @return bool
+ */
+function isAdmin() {
+    return isStaffLoggedIn() && $_SESSION['staff_role'] === 'admin';
+}
+
+/**
  * Get current user ID (customer or staff)
  * @return int|null
  */
@@ -189,6 +197,17 @@ function requireDeliveryStaff() {
  */
 function requireProductManager() {
     requireStaff('product_manager');
+}
+
+/**
+ * Require admin role to access a page
+ */
+function requireAdmin() {
+    if (!isAdmin()) {
+        // Redirect to staff login, or a generic access denied page
+        header('Location: ../authentication/login.php');
+        exit();
+    }
 }
 
 /**

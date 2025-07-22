@@ -33,15 +33,20 @@ if (!$product) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name']);
-    $description = trim($_POST['description']);
-    $price = floatval($_POST['price']);
-    $stock = intval($_POST['stock']);
+    $item_name = trim($_POST['item_name']);
+    $item_desc = trim($_POST['item_desc']);
+    $item_brand = trim($_POST['item_brand']);
+    $item_model = trim($_POST['item_model']);
+    $item_rate = floatval($_POST['item_rate']);
+    $item_quality = trim($_POST['item_quality']);
+    $item_qty = intval($_POST['item_qty']);
+    $item_rating = intval($_POST['item_rating']);
+    $category_id = intval($_POST['category_id']);
     
-    if (!$name || !$description || $price <= 0 || $stock < 0) {
+    if (!$item_name || !$item_desc || !$item_brand || !$item_model || $item_rate <= 0 || !$item_quality || $item_qty < 0 || $item_rating < 0 || $item_rating > 5 || $category_id <= 0) {
         $error = "Please fill in all fields correctly.";
     } else {
-        $image_path = $product['image']; // Keep existing image by default
+        $item_image_path = $product['Item_image']; // Keep existing image by default
         
         // Handle new image upload
         if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
@@ -60,10 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (move_uploaded_file($_FILES['image']['tmp_name'], $new_image_path)) {
                     // Delete old image if it exists
-                    if ($product['image'] && file_exists('../' . $product['image'])) {
-                        unlink('../' . $product['image']);
+                    if ($product['Item_image'] && file_exists('../' . $product['Item_image'])) {
+                        unlink('../' . $product['Item_image']);
                     }
-                    $image_path = 'uploads/products/' . $file_name;
+                    $item_image_path = 'uploads/products/' . $file_name;
                 } else {
                     $error = "Failed to upload image.";
                 }
@@ -73,23 +78,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if (!$error) {
-            $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, stock = ?, image = ? WHERE id = ?");
-            $stmt->bind_param("ssdisi", $name, $description, $price, $stock, $image_path, $product_id);
+            $stmt = $conn->prepare("UPDATE tbl_item SET Cat_id=?, Item_name=?, Item_desc=?, Item_brand=?, Item_model=?, Item_rate=?, Item_quality=?, Item_qty=?, Item_image=?, Item_rating=? WHERE Item_id = ?");
+            $stmt->bind_param("isssssisiss", $category_id, $item_name, $item_desc, $item_brand, $item_model, $item_rate, $item_quality, $item_qty, $item_image_path, $item_rating, $product_id);
             
             if ($stmt->execute()) {
-                $message = "Product updated successfully!";
+                $message = "Item updated successfully!";
                 // Update the product array with new values
-                $product['name'] = $name;
-                $product['description'] = $description;
-                $product['price'] = $price;
-                $product['stock'] = $stock;
-                $product['image'] = $image_path;
+                $product['Item_name'] = $item_name;
+                $product['Item_desc'] = $item_desc;
+                $product['Item_brand'] = $item_brand;
+                $product['Item_model'] = $item_model;
+                $product['Item_rate'] = $item_rate;
+                $product['Item_quality'] = $item_quality;
+                $product['Item_qty'] = $item_qty;
+                $product['Item_image'] = $item_image_path;
+                $product['Item_rating'] = $item_rating;
+                $product['Cat_id'] = $category_id;
             } else {
-                $error = "Error updating product: " . $conn->error;
+                $error = "Error updating item: " . $conn->error;
             }
         }
     }
 }
+
+// Fetch categories for the dropdown
+$categories_result = $conn->query("SELECT * FROM categories ORDER BY cat_name");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -275,6 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <ul>
         <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
         <li><a href="staff_products.php">Manage Products</a></li>
+        <li><a href="vendor_management.php">Manage Vendors</a></li>
+        <li><a href="purchase_management.php">Manage Purchases</a></li>
         <li><a href="add_product.php">Add Product</a></li>
         <li><a href="staff_qna.php">Customer Q&A</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
@@ -296,39 +311,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="section">
         <form method="post" enctype="multipart/form-data">
           <div class="form-group">
-            <label for="name">Product Name *</label>
-            <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($product['name']); ?>" required>
+            <label for="item_name">Item Name *</label>
+            <input type="text" id="item_name" name="item_name" value="<?php echo htmlspecialchars($product['Item_name']); ?>" required>
           </div>
 
           <div class="form-group">
-            <label for="description">Description *</label>
-            <textarea id="description" name="description" required><?php echo htmlspecialchars($product['description']); ?></textarea>
+            <label for="item_desc">Description *</label>
+            <textarea id="item_desc" name="item_desc" required><?php echo htmlspecialchars($product['Item_desc']); ?></textarea>
           </div>
 
           <div class="form-group">
-            <label for="price">Price (₹) *</label>
-            <input type="number" id="price" name="price" step="0.01" min="0" value="<?php echo $product['price']; ?>" required>
+            <label for="item_brand">Brand *</label>
+            <input type="text" id="item_brand" name="item_brand" value="<?php echo htmlspecialchars($product['Item_brand']); ?>" required>
           </div>
 
           <div class="form-group">
-            <label for="stock">Stock Quantity *</label>
-            <input type="number" id="stock" name="stock" min="0" value="<?php echo $product['stock']; ?>" required>
+            <label for="item_model">Model *</label>
+            <input type="text" id="item_model" name="item_model" value="<?php echo htmlspecialchars($product['Item_model']); ?>" required>
+          </div>
+
+          <div class="form-group">
+            <label for="item_rate">Rate (₹) *</label>
+            <input type="number" id="item_rate" name="item_rate" step="0.01" min="0" value="<?php echo $product['Item_rate']; ?>" required>
+          </div>
+
+          <div class="form-group">
+            <label for="item_quality">Quality *</label>
+            <input type="text" id="item_quality" name="item_quality" value="<?php echo htmlspecialchars($product['Item_quality']); ?>" required>
+          </div>
+
+          <div class="form-group">
+            <label for="item_qty">Quantity *</label>
+            <input type="number" id="item_qty" name="item_qty" min="0" value="<?php echo $product['Item_qty']; ?>" required>
+          </div>
+
+          <div class="form-group">
+            <label for="item_rating">Rating (0-5) *</label>
+            <input type="number" id="item_rating" name="item_rating" min="0" max="5" value="<?php echo $product['Item_rating']; ?>" required>
+          </div>
+
+          <div class="form-group">
+            <label for="category_id">Category *</label>
+            <select id="category_id" name="category_id" required>
+              <option value="">Select a category...</option>
+              <?php while ($category = $categories_result->fetch_assoc()): ?>
+                <option value="<?php echo $category['cat_id']; ?>" <?php echo ($product['Cat_id'] == $category['cat_id']) ? 'selected' : ''; ?>>
+                  <?php echo htmlspecialchars($category['cat_name']); ?>
+                </option>
+              <?php endwhile; ?>
+            </select>
           </div>
 
           <div class="form-group">
             <label for="image">Product Image</label>
-            <?php if ($product['image']): ?>
+            <?php if ($product['Item_image']): ?>
               <div class="current-image">
                 <strong>Current Image:</strong><br>
-                <img src="<?php echo htmlspecialchars('../' . $product['image']); ?>" alt="Current Product Image">
+                <img src="<?php echo htmlspecialchars('../' . $product['Item_image']); ?>" alt="Current Product Image">
               </div>
             <?php endif; ?>
             <input type="file" id="image" name="image" accept="image/*">
             <div class="file-info">Accepted formats: JPEG, PNG, GIF. Max size: 5MB. Leave empty to keep current image.</div>
           </div>
 
-          <button type="submit" class="btn btn-primary">Update Product</button>
-          <a href="staff_products.php" class="btn btn-success" style="margin-left: 10px;">Back to Products</a>
+          <button type="submit" class="btn btn-primary">Update Item</button>
+          <a href="staff_products.php" class="btn btn-success" style="margin-left: 10px;">Back to Items</a>
         </form>
       </div>
     </main>

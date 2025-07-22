@@ -14,36 +14,45 @@ $message = '';
 $error = '';
 
 // Handle product deletion
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $product_id = intval($_GET['delete']);
+if (isset($_GET['delete']) && $_GET['delete']) {
+    $item_id_to_delete = $_GET['delete'];
     
-    // Get product image before deletion
-    $stmt = $conn->prepare("SELECT image FROM products WHERE id = ?");
-    $stmt->bind_param("i", $product_id);
+    // Get item image before deletion
+    $stmt = $conn->prepare("SELECT Item_image FROM tbl_item WHERE Item_id = ?");
+    $stmt->bind_param("s", $item_id_to_delete);
     $stmt->execute();
     $result = $stmt->get_result();
     
     if ($result->num_rows > 0) {
-        $product = $result->fetch_assoc();
+        $item = $result->fetch_assoc();
         
-        // Delete the product
-        $delete_stmt = $conn->prepare("DELETE FROM products WHERE id = ?");
-        $delete_stmt->bind_param("i", $product_id);
+        // Delete the item
+        $delete_stmt = $conn->prepare("DELETE FROM tbl_item WHERE Item_id = ?");
+        $delete_stmt->bind_param("s", $item_id_to_delete);
         
         if ($delete_stmt->execute()) {
             // Delete the image file if it exists
-            if ($product['image'] && file_exists($product['image'])) {
-                unlink($product['image']);
+            if ($item['Item_image'] && file_exists('../' . $item['Item_image'])) {
+                unlink('../' . $item['Item_image']);
             }
-            $message = "Product deleted successfully!";
+            $message = "Item deleted successfully!";
         } else {
-            $error = "Failed to delete product.";
+            $error = "Failed to delete item.";
         }
     }
 }
 
-// Fetch all products
-$sql = "SELECT * FROM products ORDER BY created_at DESC";
+// Fetch all items
+$filter = isset($_GET['filter']) ? $_GET['filter'] : 'lowest_price';
+$orderBy = 'Item_rate ASC';
+if ($filter === 'highest_price') {
+    $orderBy = 'Item_rate DESC';
+} elseif ($filter === 'lowest_rating') {
+    $orderBy = 'Item_rating ASC';
+} elseif ($filter === 'highest_rating') {
+    $orderBy = 'Item_rating DESC';
+}
+$sql = "SELECT i.*, c.cat_name FROM tbl_item i LEFT JOIN categories c ON i.Cat_id = c.cat_id ORDER BY $orderBy, i.created_at DESC";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
@@ -216,6 +225,8 @@ $result = $conn->query($sql);
       <ul>
         <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
         <li><a href="staff_products.php">Manage Products</a></li>
+        <li><a href="vendor_management.php">Manage Vendors</a></li>
+        <li><a href="purchase_management.php">Manage Purchases</a></li>
         <li><a href="add_product.php">Add Product</a></li>
         <li><a href="staff_qna.php">Customer Q&A</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
@@ -234,6 +245,17 @@ $result = $conn->query($sql);
         <div class="message error"><?php echo htmlspecialchars($error); ?></div>
       <?php endif; ?>
 
+      <!-- Filter Bar -->
+      <div class="filter-bar" style="margin-bottom: 18px;">
+        <form method="get" style="display: flex; align-items: center; gap: 18px;">
+          <label><input type="radio" name="filter" value="lowest_price" <?php if (!isset($_GET['filter']) || $_GET['filter']==='lowest_price') echo 'checked'; ?>> Lowest Price</label>
+          <label><input type="radio" name="filter" value="highest_price" <?php if (isset($_GET['filter']) && $_GET['filter']==='highest_price') echo 'checked'; ?>> Highest Price</label>
+          <label><input type="radio" name="filter" value="lowest_rating" <?php if (isset($_GET['filter']) && $_GET['filter']==='lowest_rating') echo 'checked'; ?>> Lowest Rating</label>
+          <label><input type="radio" name="filter" value="highest_rating" <?php if (isset($_GET['filter']) && $_GET['filter']==='highest_rating') echo 'checked'; ?>> Highest Rating</label>
+          <button type="submit" style="margin-left: 18px;">Apply</button>
+        </form>
+      </div>
+
       <div class="section">
         <a href="add_product.php" class="add-product-btn">+ Add New Product</a>
 
@@ -244,33 +266,43 @@ $result = $conn->query($sql);
               <tr>
                 <th>Image</th>
                 <th>Name</th>
-                <th>Description</th>
+                <th>Category</th>
+                <th>Brand</th>
+                <th>Model</th>
                 <th>Price (₹)</th>
+                <th>Rating</th>
                 <th>Stock</th>
-                <th>Created</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <?php while ($product = $result->fetch_assoc()): ?>
+              <?php while ($item = $result->fetch_assoc()): ?>
                 <tr>
                   <td>
-                    <?php if ($product['image']): ?>
-                      <img src="<?php echo htmlspecialchars($product['image']); ?>" alt="Product Image" class="product-image">
+                    <?php if ($item['Item_image']): ?>
+                      <img src="<?php echo htmlspecialchars('../' . $item['Item_image']); ?>" alt="Item Image" class="product-image">
                     <?php else: ?>
                       <div style="width: 60px; height: 60px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999;">
                         No Image
                       </div>
                     <?php endif; ?>
                   </td>
-                  <td><?php echo htmlspecialchars($product['name']); ?></td>
-                  <td><?php echo htmlspecialchars(substr($product['description'], 0, 100)) . (strlen($product['description']) > 100 ? '...' : ''); ?></td>
-                  <td>₹<?php echo number_format($product['price'], 2); ?></td>
-                  <td><?php echo $product['stock']; ?></td>
-                  <td><?php echo date('M d, Y', strtotime($product['created_at'])); ?></td>
+                  <td><?php echo htmlspecialchars($item['Item_name']); ?></td>
+                  <td><?php echo htmlspecialchars($item['cat_name'] ?? 'N/A'); ?></td>
+                  <td><?php echo htmlspecialchars($item['Item_brand']); ?></td>
+                  <td><?php echo htmlspecialchars($item['Item_model']); ?></td>
+                  <td>₹<?php echo number_format($item['Item_rate'], 2); ?></td>
+                  <td style="color: #f39c12; font-weight: bold;">
+                    <?php 
+                        $rating = intval($item['Item_rating']);
+                        for ($i = 0; $i < $rating; $i++) echo '★';
+                        for ($i = 0; $i < 5 - $rating; $i++) echo '✩';
+                    ?>
+                  </td>
+                  <td><?php echo $item['Item_qty']; ?></td>
                   <td>
-                    <a href="edit_product.php?id=<?php echo $product['id']; ?>" class="btn btn-warning">Edit</a>
-                    <a href="?delete=<?php echo $product['id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this product?')">Delete</a>
+                    <a href="edit_product.php?id=<?php echo $item['Item_id']; ?>" class="btn btn-warning">Edit</a>
+                    <a href="?delete=<?php echo $item['Item_id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this item?')">Delete</a>
                   </td>
                 </tr>
               <?php endwhile; ?>

@@ -3,11 +3,11 @@ require_once '../session_manager.php';
 include '../db_connect.php';
 
 if (!isset($_GET['id'])) {
-    echo "Product not found.";
+    echo "Item not found.";
     exit;
 }
 
-$product_id = intval($_GET['id']);
+$item_id = $_GET['id'];
 $isLoggedInCustomer = isCustomer();
 
 // Handle question submission
@@ -15,8 +15,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['question']) && $isLogg
     $question = trim($_POST['question']);
     if (!empty($question)) {
         $customer_id = getCurrentUserId();
-        $stmt = $conn->prepare("INSERT INTO product_questions (product_id, customer_id, question) VALUES (?, ?, ?)");
-        $stmt->bind_param("iis", $product_id, $customer_id, $question);
+        $stmt = $conn->prepare("INSERT INTO product_questions (item_id, customer_id, question) VALUES (?, ?, ?)");
+        $stmt->bind_param("sis", $item_id, $customer_id, $question);
         
         if ($stmt->execute()) {
             $success_message = "Your question has been submitted successfully!";
@@ -28,20 +28,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['question']) && $isLogg
     }
 }
 
-// Get product info
-$stmt = $conn->prepare("SELECT name FROM products WHERE id = ?");
-$stmt->bind_param("i", $product_id);
+// Get item info
+$stmt = $conn->prepare("SELECT Item_name FROM tbl_item WHERE Item_id = ?");
+$stmt->bind_param("s", $item_id);
 $stmt->execute();
-$product = $stmt->get_result()->fetch_assoc();
+$item = $stmt->get_result()->fetch_assoc();
 
-if (!$product) {
-    echo "Product not found.";
+if (!$item) {
+    echo "Item not found.";
     exit;
 }
 
 // Get Q&A
-$qstmt = $conn->prepare("SELECT pq.*, s.name AS staff_name FROM product_questions pq LEFT JOIN staff s ON pq.staff_id = s.id WHERE pq.product_id = ? ORDER BY pq.created_at DESC");
-$qstmt->bind_param("i", $product_id);
+$qstmt = $conn->prepare("SELECT pq.*, s.name AS staff_name FROM product_questions pq LEFT JOIN staff s ON pq.staff_id = s.id WHERE pq.item_id = ? ORDER BY pq.created_at DESC");
+$qstmt->bind_param("s", $item_id);
 $qstmt->execute();
 $qresult = $qstmt->get_result();
 ?>
@@ -49,7 +49,7 @@ $qresult = $qstmt->get_result();
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Q&A for <?php echo htmlspecialchars($product['name']); ?></title>
+    <title>Q&A for <?php echo htmlspecialchars($item['Item_name']); ?></title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
         .container { max-width: 700px; margin: auto; background: #fff; padding: 25px; border-radius: 10px; }
@@ -70,7 +70,7 @@ $qresult = $qstmt->get_result();
 <body>
 
 <div class="container">
-    <h2>Q&A - <?php echo htmlspecialchars($product['name']); ?></h2>
+    <h2>Q&A - <?php echo htmlspecialchars($item['Item_name']); ?></h2>
 
     <?php if (isset($success_message)): ?>
         <div class="message success"><?php echo htmlspecialchars($success_message); ?></div>
@@ -106,7 +106,7 @@ $qresult = $qstmt->get_result();
         <p><em>No questions yet. Be the first to ask!</em></p>
     <?php endif; ?>
 
-    <a href="product_details.php?id=<?php echo $product_id; ?>" class="back-link">← Back to Product</a>
+    <a href="product_details.php?id=<?php echo $item_id; ?>" class="back-link">← Back to Item</a>
 </div>
 
 </body>

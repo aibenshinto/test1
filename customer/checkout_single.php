@@ -11,10 +11,10 @@ if (!isset($_GET['id'])) {
     exit;
 }
 
-$product_id = intval($_GET['id']);
+$id = $_GET['id'];
 
-$stmt = $conn->prepare("SELECT * FROM products WHERE id = ?");
-$stmt->bind_param("i", $product_id);
+$stmt = $conn->prepare("SELECT * FROM tbl_item WHERE Item_id = ?");
+$stmt->bind_param("s", $id);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -29,7 +29,7 @@ $product = $result->fetch_assoc();
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Checkout - <?= htmlspecialchars($product['name']) ?></title>
+    <title>Checkout - <?= htmlspecialchars($product['Item_name']) ?></title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -75,13 +75,17 @@ $product = $result->fetch_assoc();
 <body>
 <div class="checkout-box">
     <h2>Checkout</h2>
-    <img src="<?= htmlspecialchars($product['image']) ?>" alt="Product Image">
-    <h3><?= htmlspecialchars($product['name']) ?></h3>
-    <p class="price">₹<?= htmlspecialchars($product['price']) ?></p>
-    <p>Stock: <?= htmlspecialchars($product['stock']) ?></p>
+    <div class="product-info">
+        <img src="../<?php echo htmlspecialchars($product['Item_image']); ?>" alt="Item Image">
+        <div>
+            <h3><?php echo htmlspecialchars($product['Item_name']); ?></h3>
+            <div class="price">₹<?php echo number_format($product['Item_rate'], 2); ?></div>
+        </div>
+    </div>
+    <p>Stock: <?= htmlspecialchars($product['Item_stock']) ?></p>
 
     <form method="post" action="payment_process.php">
-        <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+        <input type="hidden" name="product_id" value="<?php echo $product['Item_id']; ?>">
         <input type="hidden" name="quantity" value="1">
         <button type="submit" class="pay-btn">Pay</button>
     </form>

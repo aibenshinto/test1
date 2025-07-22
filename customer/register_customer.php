@@ -36,21 +36,31 @@ function geocodeAddress($address) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $name = trim($_POST['name']);
-    $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
-    $location = trim($_POST['location']);
+    $Cust_fname = trim($_POST['Cust_fname']);
+    $Cust_lname = trim($_POST['Cust_lname']);
+    $Cust_street = trim($_POST['Cust_street']);
+    $Cust_city = trim($_POST['Cust_city']);
+    $Cust_state = trim($_POST['Cust_state']);
+    $Cust_gender = trim($_POST['Cust_gender']);
+    $Cust_ph = trim($_POST['Cust_ph']);
+    $Cust_email = filter_var(trim($_POST['Cust_email']), FILTER_SANITIZE_EMAIL);
+    $Username = trim($_POST['Username']);
+    $Password = $_POST['Password'];
 
-    if (!$name || !$email || !$password || !$location) {
+    // Combine address for geocoding
+    $address = "{$Cust_street}, {$Cust_city}, {$Cust_state}";
+
+    // Validate fields (add more as needed)
+    if (!$Cust_fname || !$Cust_lname || !$Cust_street || !$Cust_city || !$Cust_state || !$Cust_gender || !$Cust_ph || !$Cust_email || !$Username || !$Password) {
         $error = "All fields are required.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    } elseif (!filter_var($Cust_email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format.";
-    } elseif (strlen($password) < 6) {
+    } elseif (strlen($Password) < 6) {
         $error = "Password must be at least 6 characters.";
     } else {
         // Check if email already exists
-        $check = $conn->prepare("SELECT id FROM customers WHERE email = ?");
-        $check->bind_param("s", $email);
+        $check = $conn->prepare("SELECT Cust_id FROM tbl_customer WHERE Cust_email = ?");
+        $check->bind_param("s", $Cust_email);
         $check->execute();
         $check->store_result();
 
@@ -58,17 +68,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $error = "Email already exists.";
         } else {
             // Geocode the address to get coordinates
-            $coordinates = geocodeAddress($location);
-            
+            $coordinates = geocodeAddress($address);
+
             if ($coordinates) {
                 $latitude = $coordinates['latitude'];
                 $longitude = $coordinates['longitude'];
-                
+
+                // Generate Cust_id (simple example: use uniqid)
+                $Cust_id = strtoupper(substr(uniqid('CUST'), 0, 6));
+
                 // Hash password and insert customer
-                $hash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare("INSERT INTO customers (name, email, password, location, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("ssssdd", $name, $email, $hash, $location, $latitude, $longitude);
-                
+                $hash = password_hash($Password, PASSWORD_DEFAULT);
+                $stmt = $conn->prepare("INSERT INTO tbl_customer (Cust_id, Cust_fname, Cust_lname, Cust_street, Cust_city, Cust_state, Cust_gender, Cust_ph, Cust_email, Username, Password, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssssssssssdd", $Cust_id, $Cust_fname, $Cust_lname, $Cust_street, $Cust_city, $Cust_state, $Cust_gender, $Cust_ph, $Cust_email, $Username, $hash, $latitude, $longitude);
+
                 if ($stmt->execute()) {
                     $message = "Customer registered successfully! Your coordinates have been automatically calculated.";
                 } else {
@@ -245,21 +258,44 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <form method="post" id="registerForm" autocomplete="off">
             <div class="input-group">
-                <input type="text" name="name" id="name" required placeholder=" " value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>" />
-                <label for="name">Full Name</label>
+                <input type="text" name="Cust_fname" id="Cust_fname" required placeholder=" " value="<?php echo isset($_POST['Cust_fname']) ? htmlspecialchars($_POST['Cust_fname']) : ''; ?>" />
+                <label for="Cust_fname">First Name</label>
             </div>
             <div class="input-group">
-                <input type="email" name="email" id="email" required placeholder=" " value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
-                <label for="email">Email</label>
+                <input type="text" name="Cust_lname" id="Cust_lname" required placeholder=" " value="<?php echo isset($_POST['Cust_lname']) ? htmlspecialchars($_POST['Cust_lname']) : ''; ?>" />
+                <label for="Cust_lname">Last Name</label>
             </div>
             <div class="input-group">
-                <input type="password" name="password" id="password" required placeholder=" " />
-                <label for="password">Password</label>
+                <input type="text" name="Cust_street" id="Cust_street" required placeholder=" " value="<?php echo isset($_POST['Cust_street']) ? htmlspecialchars($_POST['Cust_street']) : ''; ?>" />
+                <label for="Cust_street">Street</label>
             </div>
             <div class="input-group">
-                <input type="text" name="location" id="location" required placeholder=" " value="<?php echo isset($_POST['location']) ? htmlspecialchars($_POST['location']) : ''; ?>" />
-                <label for="location">Complete Address</label>
-                <div class="info-text">Enter your full address for automatic coordinate calculation</div>
+                <input type="text" name="Cust_city" id="Cust_city" required placeholder=" " value="<?php echo isset($_POST['Cust_city']) ? htmlspecialchars($_POST['Cust_city']) : ''; ?>" />
+                <label for="Cust_city">City</label>
+            </div>
+            <div class="input-group">
+                <input type="text" name="Cust_state" id="Cust_state" required placeholder=" " value="<?php echo isset($_POST['Cust_state']) ? htmlspecialchars($_POST['Cust_state']) : ''; ?>" />
+                <label for="Cust_state">State</label>
+            </div>
+            <div class="input-group">
+                <input type="text" name="Cust_gender" id="Cust_gender" required placeholder=" " value="<?php echo isset($_POST['Cust_gender']) ? htmlspecialchars($_POST['Cust_gender']) : ''; ?>" />
+                <label for="Cust_gender">Gender</label>
+            </div>
+            <div class="input-group">
+                <input type="text" name="Cust_ph" id="Cust_ph" required placeholder=" " value="<?php echo isset($_POST['Cust_ph']) ? htmlspecialchars($_POST['Cust_ph']) : ''; ?>" />
+                <label for="Cust_ph">Phone</label>
+            </div>
+            <div class="input-group">
+                <input type="email" name="Cust_email" id="Cust_email" required placeholder=" " value="<?php echo isset($_POST['Cust_email']) ? htmlspecialchars($_POST['Cust_email']) : ''; ?>" />
+                <label for="Cust_email">Email</label>
+            </div>
+            <div class="input-group">
+                <input type="text" name="Username" id="Username" required placeholder=" " value="<?php echo isset($_POST['Username']) ? htmlspecialchars($_POST['Username']) : ''; ?>" />
+                <label for="Username">Username</label>
+            </div>
+            <div class="input-group">
+                <input type="password" name="Password" id="Password" required placeholder=" " />
+                <label for="Password">Password</label>
             </div>
             
             <input type="submit" value="Register" class="register-btn">
@@ -273,13 +309,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             const form = document.getElementById('registerForm');
 
             form.addEventListener('submit', function (e) {
-                const name = form.name.value.trim();
+                const fname = form.fname.value.trim();
+                const lname = form.lname.value.trim();
+                const street = form.street.value.trim();
+                const city = form.city.value.trim();
+                const state = form.state.value.trim();
+                const gender = form.gender.value.trim();
+                const phone = form.phone.value.trim();
                 const email = form.email.value.trim();
+                const username = form.username.value.trim();
                 const password = form.password.value.trim();
-                const location = form.location.value.trim();
                 let messageBox = document.querySelector('.message');
 
-                if (!name || !email || !password || !location) {
+                if (!fname || !lname || !street || !city || !state || !gender || !phone || !email || !username || !password) {
                     e.preventDefault();
                     if (!messageBox) {
                         messageBox = document.createElement('div');

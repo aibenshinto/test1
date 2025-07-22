@@ -126,14 +126,12 @@ $staff_name = getCurrentUsername();
       <h2><?php echo ucfirst($staff_role); ?> Panel</h2>
       <p>Hello, <?= htmlspecialchars($staff_name) ?> <span class="role-badge"><?= ucfirst($staff_role) ?></span></p>
       <ul>
-        <?php if ($staff_role === 'product_manager'): ?>
-          <li><a href="staff_products.php">Manage Products</a></li>
-          <li><a href="add_product.php">Add Product</a></li>
-          <li><a href="staff_qna.php">Customer Q&A</a></li>
-        <?php elseif ($staff_role === 'delivery'): ?>
-          <li><a href="delivery_dashboard.php">Delivery Orders</a></li>
-          <li><a href="view_orders.php">All Orders</a></li>
-        <?php endif; ?>
+        <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
+        <li><a href="staff_products.php">Manage Products</a></li>
+        <li><a href="vendor_management.php">Manage Vendors</a></li>
+        <li><a href="purchase_management.php">Manage Purchases</a></li>
+        <li><a href="add_product.php">Add Product</a></li>
+        <li><a href="staff_qna.php">Customer Q&A</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
       </ul>
     </aside>
@@ -145,24 +143,84 @@ $staff_name = getCurrentUsername();
         <p>Manage products and handle customer questions.</p>
         
         <?php
-        // Get statistics for product manager
-        $product_count = $conn->query("SELECT COUNT(*) as count FROM products")->fetch_assoc()['count'];
-        $pending_questions = $conn->query("SELECT COUNT(*) as count FROM product_questions WHERE answer IS NULL")->fetch_assoc()['count'];
+        // Fetch key metrics
+        $total_customers = $conn->query("SELECT COUNT(*) as count FROM customers")->fetch_assoc()['count'];
+        $total_products = $conn->query("SELECT COUNT(*) as count FROM tbl_item")->fetch_assoc()['count'];
         $total_orders = $conn->query("SELECT COUNT(*) as count FROM orders")->fetch_assoc()['count'];
+        $pending_orders = $conn->query("SELECT COUNT(*) as count FROM orders WHERE status = 'Pending'")->fetch_assoc()['count'];
+        $total_sales = $conn->query("SELECT SUM(total_amount) as sum FROM orders WHERE status = 'Delivered'")->fetch_assoc()['sum'];
+
+        // Fetch recent orders
+        $recent_orders = $conn->query("
+            SELECT o.id, o.order_date, o.total_amount, c.name as customer_name, o.status 
+            FROM orders o 
+            JOIN customers c ON o.customer_id = c.id 
+            ORDER BY o.order_date DESC 
+            LIMIT 5
+        ");
+
+        // Fetch top-selling products
+        $top_products = $conn->query("
+            SELECT i.Item_name, SUM(oi.quantity) as total_sold
+            FROM order_items oi
+            JOIN tbl_item i ON oi.item_id = i.Item_id
+            GROUP BY i.Item_name
+            ORDER BY total_sold DESC
+            LIMIT 5
+        ");
         ?>
         
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-number"><?php echo $product_count; ?></div>
-            <div class="stat-label">Total Products</div>
+            <div class="stat-number"><?php echo $total_customers; ?></div>
+            <div class="stat-label">Total Customers</div>
           </div>
           <div class="stat-card">
-            <div class="stat-number"><?php echo $pending_questions; ?></div>
-            <div class="stat-label">Pending Questions</div>
+            <div class="stat-number"><?php echo $total_products; ?></div>
+            <div class="stat-label">Total Products</div>
           </div>
           <div class="stat-card">
             <div class="stat-number"><?php echo $total_orders; ?></div>
             <div class="stat-label">Total Orders</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number"><?php echo $pending_orders; ?></div>
+            <div class="stat-label">Pending Orders</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number"><?php echo $total_sales; ?></div>
+            <div class="stat-label">Total Sales</div>
+          </div>
+        </div>
+        
+        <div class="stats-grid" style="margin-top: 30px;">
+          <div class="stat-card">
+            <h3>Recent Orders</h3>
+            <ul>
+              <?php
+              if ($recent_orders->num_rows > 0) {
+                while ($row = $recent_orders->fetch_assoc()) {
+                  echo "<li>{$row['order_date']} - {$row['customer_name']} ({$row['status']})</li>";
+                }
+              } else {
+                echo "<li>No recent orders.</li>";
+              }
+              ?>
+            </ul>
+          </div>
+          <div class="stat-card">
+            <h3>Top Selling Products</h3>
+            <ul>
+              <?php
+              if ($top_products->num_rows > 0) {
+                while ($row = $top_products->fetch_assoc()) {
+                  echo "<li>{$row['Item_name']} (Sold: {$row['total_sold']})</li>";
+                }
+              } else {
+                echo "<li>No top selling products.</li>";
+              }
+              ?>
+            </ul>
           </div>
         </div>
         

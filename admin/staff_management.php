@@ -8,15 +8,15 @@ $message = '';
 $error = '';
 
 // Handle staff deletion
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $staff_id_to_delete = intval($_GET['delete']);
+if (isset($_GET['delete']) && !empty($_GET['delete'])) {
+    $staff_id_to_delete = $_GET['delete'];
     
     // Prevent admin from deleting themselves
     if ($staff_id_to_delete === getCurrentUserId()) {
         $error = "You cannot delete your own account.";
     } else {
-        $delete_stmt = $conn->prepare("DELETE FROM staff WHERE id = ?");
-        $delete_stmt->bind_param("i", $staff_id_to_delete);
+        $delete_stmt = $conn->prepare("DELETE FROM tbl_staff WHERE Staff_id = ?");
+        $delete_stmt->bind_param("s", $staff_id_to_delete);
         
         if ($delete_stmt->execute()) {
             $message = "Staff member deleted successfully!";
@@ -27,7 +27,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 }
 
 // Fetch all staff members
-$sql = "SELECT * FROM staff ORDER BY role, name";
+$sql = "SELECT * FROM tbl_staff ORDER BY role, Staff_fname, Staff_lname";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
@@ -80,14 +80,14 @@ $result = $conn->query($sql);
             <tbody>
               <?php while ($staff = $result->fetch_assoc()): ?>
                 <tr>
-                  <td><?php echo htmlspecialchars($staff['name']); ?></td>
-                  <td><?php echo htmlspecialchars($staff['email']); ?></td>
+                  <td><?php echo htmlspecialchars($staff['Staff_fname'] . ' ' . $staff['Staff_lname']); ?></td>
+                  <td><?php echo htmlspecialchars($staff['Staff_email']); ?></td>
                   <td><span class="role-badge-table <?php echo htmlspecialchars($staff['role']); ?>"><?php echo ucfirst(str_replace('_', ' ', $staff['role'])); ?></span></td>
-                  <td><?php echo date('M d, Y', strtotime($staff['created_at'])); ?></td>
+                  <td><?php echo date('M d, Y', strtotime($staff['Staff_DOJ'])); ?></td>
                   <td>
-                    <a href="edit_staff.php?id=<?php echo $staff['id']; ?>" class="btn btn-warning">Edit</a>
-                    <?php if ($staff['id'] !== getCurrentUserId()): // Prevent self-deletion button ?>
-                      <a href="?delete=<?php echo $staff['id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this staff member?')">Delete</a>
+                    <a href="edit_staff.php?id=<?php echo $staff['Staff_id']; ?>" class="btn btn-warning">Edit</a>
+                    <?php if ($staff['Staff_id'] !== getCurrentUserId()): // Prevent self-deletion button ?>
+                      <a href="?delete=<?php echo $staff['Staff_id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this staff member?')">Delete</a>
                     <?php endif; ?>
                   </td>
                 </tr>

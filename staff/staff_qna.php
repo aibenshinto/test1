@@ -35,7 +35,7 @@ $sql = "SELECT pq.*, i.Item_name as item_name, c.name as customer_name, c.email 
         FROM product_questions pq
         JOIN tbl_item i ON pq.item_id = i.Item_id
         JOIN customers c ON pq.customer_id = c.id
-        LEFT JOIN staff s ON pq.staff_id = s.id
+        LEFT JOIN tbl_staff s ON pq.staff_id = s.id
         ORDER BY pq.created_at DESC";
 
 $result = $conn->query($sql);

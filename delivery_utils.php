@@ -101,15 +101,17 @@ function getCoordinatesFromAddress($address) {
 /**
  * Update customer coordinates in database
  * @param mysqli $conn Database connection
- * @param int $customerId Customer ID
+ * @param string $customerId Customer ID (Cust_id)
  * @param float $latitude Latitude
  * @param float $longitude Longitude
  * @return bool Success status
  */
 function updateCustomerCoordinates($conn, $customerId, $latitude, $longitude) {
-    $stmt = $conn->prepare("UPDATE customers SET latitude = ?, longitude = ? WHERE id = ?");
-    $stmt->bind_param("ddi", $latitude, $longitude, $customerId);
-    return $stmt->execute();
+    $stmt = $conn->prepare("UPDATE tbl_customer SET latitude = ?, longitude = ? WHERE Cust_id = ?");
+    $stmt->bind_param("dds", $latitude, $longitude, $customerId);
+    $result = $stmt->execute();
+    $stmt->close();
+    return $result;
 }
 
 /**
@@ -118,7 +120,7 @@ function updateCustomerCoordinates($conn, $customerId, $latitude, $longitude) {
  * @return array Array of delivery staff
  */
 function getAvailableDeliveryStaff($conn) {
-    $sql = "SELECT id, name, email FROM staff WHERE role = 'delivery' ORDER BY name";
+    $sql = "SELECT Staff_id AS id, Staff_fname AS name, Staff_email AS email FROM tbl_staff WHERE role = 'delivery' ORDER BY Staff_fname";
     $result = $conn->query($sql);
     
     $staff = [];
@@ -126,6 +128,7 @@ function getAvailableDeliveryStaff($conn) {
         while ($row = $result->fetch_assoc()) {
             $staff[] = $row;
         }
+        $result->close();
     }
     
     return $staff;
@@ -135,13 +138,15 @@ function getAvailableDeliveryStaff($conn) {
  * Assign delivery staff to order
  * @param mysqli $conn Database connection
  * @param int $orderId Order ID
- * @param int $staffId Staff ID
+ * @param string $staffId Staff ID (Staff_id)
  * @return bool Success status
  */
 function assignDeliveryStaff($conn, $orderId, $staffId) {
     $stmt = $conn->prepare("UPDATE orders SET delivery_staff_id = ? WHERE id = ?");
-    $stmt->bind_param("ii", $staffId, $orderId);
-    return $stmt->execute();
+    $stmt->bind_param("si", $staffId, $orderId);
+    $result = $stmt->execute();
+    $stmt->close();
+    return $result;
 }
 
 /**
@@ -154,7 +159,9 @@ function assignDeliveryStaff($conn, $orderId, $staffId) {
 function updateOrderStatus($conn, $orderId, $status) {
     $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
     $stmt->bind_param("si", $status, $orderId);
-    return $stmt->execute();
+    $result = $stmt->execute();
+    $stmt->close();
+    return $result;
 }
 
 /**
@@ -164,33 +171,35 @@ function updateOrderStatus($conn, $orderId, $status) {
  * @return array Order details or null if not found
  */
 function getOrderDetails($conn, $orderId) {
-    $sql = "SELECT o.*, c.name as customer_name, c.email as customer_email, 
-                   c.location as customer_location, c.latitude, c.longitude,
-                   s.name as delivery_staff_name
+    $sql = "SELECT o.*, c.Cust_fname AS customer_name, c.Cust_email AS customer_email, 
+                   CONCAT(c.Cust_street, ', ', c.Cust_city, ', ', c.Cust_state) AS customer_location,
+                   c.latitude, c.longitude, s.Staff_fname AS delivery_staff_name
             FROM orders o
-            JOIN customers c ON o.customer_id = c.id
-            LEFT JOIN staff s ON o.delivery_staff_id = s.id
+            JOIN tbl_customer c ON o.customer_id = c.Cust_id
+            LEFT JOIN tbl_staff s ON o.delivery_staff_id = s.Staff_id
             WHERE o.id = ?";
     
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $orderId);
     $stmt->execute();
     $result = $stmt->get_result();
-    
-    return $result->fetch_assoc();
+    $order = $result->fetch_assoc();
+    $stmt->close();
+    return $order;
 }
 
 /**
  * Get orders for delivery staff
  * @param mysqli $conn Database connection
- * @param int $staffId Staff ID (optional, if null gets all delivery orders)
+ * @param string $staffId Staff ID (Staff_id, optional)
  * @return array Array of orders
  */
 function getDeliveryOrders($conn, $staffId = null) {
-    $sql = "SELECT o.*, c.name as customer_name, c.location as customer_location,
+    $sql = "SELECT o.*, c.Cust_fname AS customer_name, 
+                   CONCAT(c.Cust_street, ', ', c.Cust_city, ', ', c.Cust_state) AS customer_location,
                    c.latitude, c.longitude
             FROM orders o
-            JOIN customers c ON o.customer_id = c.id
+            JOIN tbl_customer c ON o.customer_id = c.Cust_id
             WHERE o.delivery_type = 'delivery'";
     
     if ($staffId) {
@@ -201,7 +210,7 @@ function getDeliveryOrders($conn, $staffId = null) {
     
     $stmt = $conn->prepare($sql);
     if ($staffId) {
-        $stmt->bind_param("i", $staffId);
+        $stmt->bind_param("s", $staffId);
     }
     $stmt->execute();
     $result = $stmt->get_result();
@@ -210,7 +219,9 @@ function getDeliveryOrders($conn, $staffId = null) {
     while ($row = $result->fetch_assoc()) {
         $orders[] = $row;
     }
+    $result->close();
+    $stmt->close();
     
     return $orders;
 }
-?> 
+?>

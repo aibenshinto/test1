@@ -6,44 +6,45 @@ requireAdmin();
 
 $message = '';
 $error = '';
-$staff = null;
+$tbl_staff = null;
 
 // Get staff ID from URL
-$staff_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$staff_id = isset($_GET['id']) ? $_GET['id'] : '';
 
-if ($staff_id <= 0) {
+if (empty($staff_id)) {
     header("Location: staff_management.php");
     exit;
 }
 
 // Fetch staff details
-$stmt = $conn->prepare("SELECT * FROM staff WHERE id = ?");
-$stmt->bind_param("i", $staff_id);
+$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE Staff_id = ?");
+$stmt->bind_param("s", $staff_id);
 $stmt->execute();
 $result = $stmt->get_result();
-$staff = $result->fetch_assoc();
+$tbl_staff = $result->fetch_assoc();
 
-if (!$staff) {
+if (!$tbl_staff) {
     header("Location: staff_management.php");
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name']);
+    $fname = trim($_POST['fname']);
+    $lname = trim($_POST['lname']);
     $email = trim($_POST['email']);
     $role = $_POST['role'];
     $password = $_POST['password'];
 
-    if (empty($name) || empty($email) || empty($role)) {
+    if (empty($fname) || empty($lname) || empty($email) || empty($role)) {
         $error = "Please fill in all required fields.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Invalid email format.";
-    } elseif ($staff['id'] === getCurrentUserId() && $role !== 'admin') {
+    } elseif ($tbl_staff['Staff_id'] === getCurrentUserId() && $role !== 'admin') {
         $error = "You cannot change your own role from Admin.";
     } else {
         // Check if email already exists for another user
-        $check_email_stmt = $conn->prepare("SELECT id FROM staff WHERE email = ? AND id != ?");
-        $check_email_stmt->bind_param("si", $email, $staff_id);
+        $check_email_stmt = $conn->prepare("SELECT Staff_id FROM tbl_staff WHERE Staff_email = ? AND Staff_id != ?");
+        $check_email_stmt->bind_param("ss", $email, $staff_id);
         $check_email_stmt->execute();
         $check_email_stmt->store_result();
 
@@ -52,18 +53,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             if (!empty($password)) {
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $update_stmt = $conn->prepare("UPDATE staff SET name = ?, email = ?, role = ?, password = ? WHERE id = ?");
-                $update_stmt->bind_param("ssssi", $name, $email, $role, $hashed_password, $staff_id);
+                $update_stmt = $conn->prepare("UPDATE tbl_staff SET Staff_fname = ?, Staff_lname = ?, Staff_email = ?, role = ?, Password = ? WHERE Staff_id = ?");
+                $update_stmt->bind_param("ssssss", $fname, $lname, $email, $role, $hashed_password, $staff_id);
             } else {
-                $update_stmt = $conn->prepare("UPDATE staff SET name = ?, email = ?, role = ? WHERE id = ?");
-                $update_stmt->bind_param("sssi", $name, $email, $role, $staff_id);
+                $update_stmt = $conn->prepare("UPDATE tbl_staff SET Staff_fname = ?, Staff_lname = ?, Staff_email = ?, role = ? WHERE Staff_id = ?");
+                $update_stmt->bind_param("sssss", $fname, $lname, $email, $role, $staff_id);
             }
 
             if ($update_stmt->execute()) {
                 $message = "Staff member updated successfully!";
                 // Refresh data
                 $stmt->execute();
-                $staff = $stmt->get_result()->fetch_assoc();
+                $tbl_staff = $stmt->get_result()->fetch_assoc();
             } else {
                 $error = "Error updating staff member: " . $conn->error;
             }
@@ -104,12 +105,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="section">
         <form method="post">
           <div class="form-group">
-            <label for="name">Full Name *</label>
-            <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($staff['name']); ?>" required>
+            <label for="fname">First Name *</label>
+            <input type="text" id="fname" name="fname" value="<?php echo htmlspecialchars($tbl_staff['Staff_fname']); ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="lname">Last Name *</label>
+            <input type="text" id="lname" name="lname" value="<?php echo htmlspecialchars($tbl_staff['Staff_lname']); ?>" required>
           </div>
           <div class="form-group">
             <label for="email">Email Address *</label>
-            <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($staff['email']); ?>" required>
+            <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($tbl_staff['Staff_email']); ?>" required>
           </div>
           <div class="form-group">
             <label for="password">New Password</label>
@@ -119,9 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <div class="form-group">
             <label for="role">Role *</label>
             <select id="role" name="role" required>
-              <option value="delivery" <?php if ($staff['role'] === 'delivery') echo 'selected'; ?>>Delivery</option>
-              <option value="product_manager" <?php if ($staff['role'] === 'product_manager') echo 'selected'; ?>>Product Manager</option>
-              <option value="admin" <?php if ($staff['role'] === 'admin') echo 'selected'; ?>>Admin</option>
+              <option value="delivery" <?php if ($tbl_staff['role'] === 'delivery') echo 'selected'; ?>>Delivery</option>
+              <option value="product_manager" <?php if ($tbl_staff['role'] === 'product_manager') echo 'selected'; ?>>Product Manager</option>
+              <option value="admin" <?php if ($tbl_staff['role'] === 'admin') echo 'selected'; ?>>Admin</option>
             </select>
           </div>
           <button type="submit" class="btn btn-primary">Update Staff</button>

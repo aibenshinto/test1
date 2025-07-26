@@ -5,12 +5,12 @@ include '../delivery_utils.php';
 
 requireCustomer();
 
-// Optional: Check session timeout (30 minutes)
+// Check session timeout (30 minutes)
 checkSessionTimeout(30);
 
 $customer_id = getCurrentUserId();
 
-// Fetch all orders with their items
+// Fetch all orders with their items and delivery details
 $sql = "
     SELECT 
         o.id AS order_id, 
@@ -21,9 +21,9 @@ $sql = "
         o.delivery_address,
         o.delivery_distance,
         o.delivery_fee,
-        o.estimated_delivery_time,
-        o.actual_delivery_time,
-        s.name AS delivery_staff_name,
+        CONCAT(s.Staff_fname, ' ', s.Staff_lname) AS delivery_staff_name,
+        d.del_date AS delivery_date,
+        d.del_status AS delivery_status,
         oi.item_id, 
         oi.quantity, 
         oi.price AS item_price,
@@ -33,13 +33,19 @@ $sql = "
     FROM orders o
     JOIN order_items oi ON o.id = oi.order_id
     JOIN tbl_item i ON oi.item_id = i.Item_id
-    LEFT JOIN staff s ON o.delivery_staff_id = s.id
+    LEFT JOIN tbl_staff s ON o.delivery_staff_id = s.Staff_id
+    LEFT JOIN tbl_payment p ON p.order_status = 'success'
+    LEFT JOIN tbl_delivery d ON d.cart_id = p.cart_id
+    LEFT JOIN tbl_cart_master cm ON cm.cart_mid = p.cart_id 
+        AND cm.cust_id = o.customer_id 
+        AND cm.status = 'Ordered'
     WHERE o.customer_id = ?
+    GROUP BY o.id, oi.id
     ORDER BY o.order_date DESC, o.id, oi.id
 ";
 
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $customer_id);
+$stmt->bind_param("s", $customer_id); // VARCHAR(60)
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -57,9 +63,9 @@ while ($row = $result->fetch_assoc()) {
             'delivery_address' => $row['delivery_address'],
             'delivery_distance' => $row['delivery_distance'],
             'delivery_fee' => $row['delivery_fee'],
-            'estimated_delivery_time' => $row['estimated_delivery_time'],
-            'actual_delivery_time' => $row['actual_delivery_time'],
             'delivery_staff_name' => $row['delivery_staff_name'],
+            'delivery_date' => $row['delivery_date'],
+            'delivery_status' => $row['delivery_status'],
             'items' => [],
         ];
     }
@@ -69,9 +75,17 @@ while ($row = $result->fetch_assoc()) {
         'item_image' => $row['item_image'],
         'quantity' => $row['quantity'],
         'item_price' => $row['item_price'],
-        'created_at' => $row['item_created_at'] ?? $row['order_date'],  // fallback
+        'created_at' => $row['item_created_at'] ?? $row['order_date'], // Fallback
     ];
 }
+
+$stmt->close();
+$conn->close();
+
+// Debug: Uncomment to inspect query results
+// echo "<pre>SQL: $sql</pre>";
+// echo "<pre>Orders: "; print_r($orders); echo "</pre>";
+// exit;
 ?>
 
 <!DOCTYPE html>
@@ -158,11 +172,11 @@ while ($row = $result->fetch_assoc()) {
             background: #bee5eb;
             color: #0c5460;
         }
-        .Ready for Pickup {
+        .Ready-for-Pickup {
             background: #fff3cd;
             color: #856404;
         }
-        .Out for Delivery {
+        .Out-for-Delivery {
             background: #d1ecf1;
             color: #0c5460;
         }
@@ -197,33 +211,33 @@ while ($row = $result->fetch_assoc()) {
     <?php foreach ($orders as $order_id => $order): ?>
         <div class="order">
             <div class="order-header">
-                <h3>Order #<?= htmlspecialchars($order_id) ?> - 
-                    Date: <?= date('d M Y, h:i A', strtotime($order['order_date'])) ?> - 
-                    Total: ₹<?= number_format($order['total_amount'], 2) ?> - 
-                    Status: <span class="status <?= htmlspecialchars($order['status']) ?>"><?= htmlspecialchars($order['status']) ?></span>
+                <h3>Order #<?php echo htmlspecialchars($order_id); ?> - 
+                    Date: <?php echo date('d M Y, h:i A', strtotime($order['order_date'])); ?> - 
+                    Total: ₹<?php echo number_format($order['total_amount'], 2); ?> - 
+                    Status: <span class="status <?php echo htmlspecialchars(str_replace(' ', '-', $order['status'])); ?>">
+                        <?php echo htmlspecialchars($order['status']); ?>
+                    </span>
                 </h3>
             </div>
 
             <!-- Delivery Information -->
             <div class="delivery-info">
                 <h4>Delivery Information</h4>
-                <p><strong>Type:</strong> <?= ucfirst($order['delivery_type'] ?? 'Not specified'); ?></p>
+                <p><strong>Type:</strong> <?php echo ucfirst($order['delivery_type'] ?? 'Not specified'); ?></p>
                 <?php if ($order['delivery_type'] === 'delivery'): ?>
-                    <p><strong>Address:</strong> <?= htmlspecialchars($order['delivery_address']); ?></p>
-                    <p><strong>Distance:</strong> <?= number_format($order['delivery_distance'], 2); ?> km</p>
-                    <p><strong>Delivery Fee:</strong> ₹<?= number_format($order['delivery_fee'], 2); ?></p>
+                    <p><strong>Address:</strong> <?php echo htmlspecialchars($order['delivery_address']); ?></p>
+                    <p><strong>Delivery Fee:</strong> ₹<?php echo number_format($order['delivery_fee'], 2); ?></p>
                     <?php if ($order['delivery_staff_name']): ?>
-                        <p><strong>Delivery Staff:</strong> <?= htmlspecialchars($order['delivery_staff_name']); ?></p>
+                        <p><strong>Delivery Staff:</strong> <?php echo htmlspecialchars($order['delivery_staff_name']); ?></p>
                     <?php endif; ?>
-                    <?php if ($order['estimated_delivery_time']): ?>
-                        <p><strong>Estimated Delivery:</strong> <?= date('d M Y, h:i A', strtotime($order['estimated_delivery_time'])); ?></p>
+                    <?php if ($order['delivery_date']): ?>
+                        <p><strong>Delivery Date:</strong> <?php echo date('d M Y, h:i A', strtotime($order['delivery_date'])); ?></p>
                     <?php endif; ?>
-                    <?php if ($order['actual_delivery_time']): ?>
-                        <p><strong>Delivered On:</strong> <?= date('d M Y, h:i A', strtotime($order['actual_delivery_time'])); ?></p>
+                    <?php if ($order['delivery_status']): ?>
+                        <p><strong>Delivery Status:</strong> <?php echo htmlspecialchars($order['delivery_status']); ?></p>
                     <?php endif; ?>
                 <?php else: ?>
                     <p><strong>Pickup Location:</strong> Warehouse in Kochi</p>
-                    <p><strong>Distance:</strong> <?= number_format($order['delivery_distance'], 2); ?> km (from warehouse)</p>
                     <p><strong>Note:</strong> Please collect your order from our warehouse during business hours.</p>
                 <?php endif; ?>
             </div>
@@ -242,12 +256,11 @@ while ($row = $result->fetch_assoc()) {
                     <tr>
                         <td>
                             <img src="../<?php echo htmlspecialchars($item['item_image']); ?>" alt="Item Image" class="product-img" />
-                            <div class="product-info">
-                                <div><strong><?php echo htmlspecialchars($item['item_name']); ?></strong></div>
-                                <div>Qty: <?php echo $item['quantity']; ?></div>
-                                <div>Price: ₹<?php echo number_format($item['item_price'], 2); ?></div>
-                            </div>
+                            <?php echo htmlspecialchars($item['item_name']); ?>
                         </td>
+                        <td><?php echo $item['quantity']; ?></td>
+                        <td>₹<?php echo number_format($item['item_price'], 2); ?></td>
+                        <td><?php echo date('d M Y, h:i A', strtotime($item['created_at'])); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

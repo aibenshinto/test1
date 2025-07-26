@@ -25,7 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($email) || empty($password)) {
         $message = "Please fill in all fields.";
     } else {
-        $stmt = $conn->prepare("SELECT id, name, email, password, role FROM staff WHERE email = ?");
+        $stmt = $conn->prepare("SELECT Staff_id, Staff_fname, Staff_email, Password, role FROM tbl_staff WHERE Staff_email = ?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -33,11 +33,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($result->num_rows === 1) {
             $staff = $result->fetch_assoc();
 
-            if (password_verify($password, $staff['password'])) {
+            if (password_verify($password, $staff['Password'])) {
                 // Store staff data in session (separate from customer)
-                $_SESSION['staff_id'] = $staff['id'];
-                $_SESSION['staff_name'] = $staff['name'];
-                $_SESSION['staff_email'] = $staff['email'];
+                $_SESSION['staff_id'] = $staff['Staff_id'];
+                $_SESSION['staff_name'] = $staff['Staff_fname'];
+                $_SESSION['staff_email'] = $staff['Staff_email'];
                 $_SESSION['staff_role'] = $staff['role'];
                 $_SESSION['staff_login_time'] = time();
 

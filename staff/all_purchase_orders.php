@@ -4,21 +4,33 @@ include '../db_connect.php';
 
 requireProductManager();
 
+// Generate CSRF token if not set
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $message = '';
 $error = '';
 
 // Handle purchase order deletion
-if (isset($_GET['delete']) && !empty($_GET['delete'])) {
-    $p_mid_to_delete = $_GET['delete'];
-    
-    // Deleting the master record will cascade and delete child records due to the schema design
-    $delete_stmt = $conn->prepare("DELETE FROM tb1_purchase_master WHERE P_mid = ?");
-    $delete_stmt->bind_param("s", $p_mid_to_delete);
-    
-    if ($delete_stmt->execute()) {
-        $message = "Purchase order #" . htmlspecialchars($p_mid_to_delete) . " deleted successfully!";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_purchase_order'])) {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error = "Invalid CSRF token.";
     } else {
-        $error = "Failed to delete purchase order.";
+        $p_mid_to_delete = trim($_POST['p_mid']);
+        
+        // Deleting the master record will cascade and delete child records due to schema design
+        $delete_stmt = $conn->prepare("DELETE FROM tb1_purchase_master WHERE P_mid = ?");
+        $delete_stmt->bind_param("s", $p_mid_to_delete);
+        
+        if ($delete_stmt->execute()) {
+            $message = "Purchase order #$p_mid_to_delete deleted successfully!";
+            header("Location: all_purchase_orders.php?message=" . urlencode($message));
+            exit;
+        } else {
+            $error = "Failed to delete purchase order: " . $conn->error;
+        }
+        $delete_stmt->close();
     }
 }
 
@@ -26,7 +38,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
 $purchases = $conn->query("
     SELECT pm.P_mid, pm.P_date, pm.Total_amt, v.vendor_name 
     FROM tb1_purchase_master pm 
-    JOIN vendors v ON pm.Vendor_id = v.vendor_id 
+    JOIN tbl_vendor v ON pm.Vendor_id = v.vendor_id 
     ORDER BY pm.P_date DESC
 ");
 ?>
@@ -54,8 +66,12 @@ $purchases = $conn->query("
     <main class="main-content">
       <h2>All Purchase Orders</h2>
 
-      <?php if ($message): ?><div class="message success"><?php echo $message; ?></div><?php endif; ?>
-      <?php if ($error): ?><div class="message error"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
+      <?php if ($message || (isset($_GET['message']) && $_GET['message'])): ?>
+        <div class="message success"><?php echo htmlspecialchars($message ?: $_GET['message']); ?></div>
+      <?php endif; ?>
+      <?php if ($error): ?>
+        <div class="message error"><?php echo htmlspecialchars($error); ?></div>
+      <?php endif; ?>
 
       <div class="section">
         <table>
@@ -91,11 +107,17 @@ $purchases = $conn->query("
                     } else {
                         echo "No items yet.";
                     }
+                    $child_stmt->close();
+                    $child_result->close();
                     ?>
                 </td>
                 <td>
                     <a href="purchase_management.php?edit_order=<?php echo urlencode($purchase['P_mid']); ?>" class="btn btn-warning">Edit</a>
-                    <a href="?delete=<?php echo urlencode($purchase['P_mid']); ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this entire purchase order?')">Delete</a>
+                    <form method="post" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="p_mid" value="<?php echo htmlspecialchars($purchase['P_mid']); ?>">
+                        <button type="submit" name="delete_purchase_order" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this entire purchase order?')">Delete</button>
+                    </form>
                 </td>
               </tr>
             <?php endwhile; ?>
@@ -105,4 +127,8 @@ $purchases = $conn->query("
     </main>
   </div>
 </body>
-</html> 
+</html>
+<?php
+$purchases->close();
+$conn->close();
+?>

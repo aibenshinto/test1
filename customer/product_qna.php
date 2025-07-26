@@ -40,7 +40,7 @@ if (!$item) {
 }
 
 // Get Q&A
-$qstmt = $conn->prepare("SELECT pq.*, s.name AS staff_name FROM product_questions pq LEFT JOIN staff s ON pq.staff_id = s.id WHERE pq.item_id = ? ORDER BY pq.created_at DESC");
+$qstmt = $conn->prepare("SELECT pq.*, s.name AS staff_name FROM product_questions pq LEFT JOIN tbl_staff s ON pq.staff_id = s.id WHERE pq.item_id = ? ORDER BY pq.created_at DESC");
 $qstmt->bind_param("s", $item_id);
 $qstmt->execute();
 $qresult = $qstmt->get_result();

@@ -52,7 +52,7 @@ if ($filter === 'highest_price') {
 } elseif ($filter === 'highest_rating') {
     $orderBy = 'Item_rating DESC';
 }
-$sql = "SELECT i.*, c.cat_name FROM tbl_item i LEFT JOIN categories c ON i.Cat_id = c.cat_id ORDER BY $orderBy, i.created_at DESC";
+$sql = "SELECT i.*, c.cat_name FROM tbl_item i LEFT JOIN tbl_category c ON i.Cat_id = c.cat_id ORDER BY $orderBy, i.created_at DESC";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>

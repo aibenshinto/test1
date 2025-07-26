@@ -9,14 +9,21 @@ $message = '';
 $error = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $name = trim($_POST['name']);
+    $fname = trim($_POST['fname']);
+    $lname = trim($_POST['lname']);
+    $street = trim($_POST['street']);
+    $city = trim($_POST['city']);
+    $age = intval($_POST['age']);
+    $gender = trim($_POST['gender']);
+    $phone = trim($_POST['phone']);
     $email = trim($_POST['email']);
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
     $role = $_POST['role'];
-    
+    $doj = date('Y-m-d');
     // Validation
-    if (!$name || !$email || !$password || !$confirm_password || !$role) {
+    if (!$fname || !$lname || !$street || !$city || !$age || !$gender || !$phone || !$email || !$username || !$password || !$confirm_password || !$role) {
         $error = "All fields are required.";
     } elseif ($password !== $confirm_password) {
         $error = "Passwords do not match.";
@@ -26,23 +33,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Invalid role selected.";
     } else {
         // Check if email already exists
-        $stmt = $conn->prepare("SELECT id FROM staff WHERE email = ?");
+        $stmt = $conn->prepare("SELECT Staff_id FROM tbl_staff WHERE Staff_email = ?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
-        
         if ($result->num_rows > 0) {
             $error = "Email already registered.";
         } else {
             // Hash password and insert new staff member
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            
-            $stmt = $conn->prepare("INSERT INTO staff (name, email, password, role) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("ssss", $name, $email, $hashed_password, $role);
-            
+            $staff_id = 'STF' . bin2hex(random_bytes(3));
+            $stmt = $conn->prepare("INSERT INTO tbl_staff (Staff_id, Staff_fname, Staff_lname, Staff_street, Staff_city, Staff_age, Staff_gender, Staff_ph, Staff_email, Staff_DOJ, Username, Password, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssssisisssss", $staff_id, $fname, $lname, $street, $city, $age, $gender, $phone, $email, $doj, $username, $hashed_password, $role);
             if ($stmt->execute()) {
                 $message = "Staff member registered successfully!";
-                // Clear form data
                 $_POST = array();
             } else {
                 $error = "Error registering staff member: " . $conn->error;
@@ -257,26 +261,55 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <form method="post">
           <div class="form-group">
-            <label for="name">Full Name *</label>
-            <input type="text" id="name" name="name" value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>" required>
+            <label for="fname">First Name *</label>
+            <input type="text" id="fname" name="fname" value="<?php echo isset($_POST['fname']) ? htmlspecialchars($_POST['fname']) : ''; ?>" required>
           </div>
-
+          <div class="form-group">
+            <label for="lname">Last Name *</label>
+            <input type="text" id="lname" name="lname" value="<?php echo isset($_POST['lname']) ? htmlspecialchars($_POST['lname']) : ''; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="street">Street *</label>
+            <input type="text" id="street" name="street" value="<?php echo isset($_POST['street']) ? htmlspecialchars($_POST['street']) : ''; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="city">City *</label>
+            <input type="text" id="city" name="city" value="<?php echo isset($_POST['city']) ? htmlspecialchars($_POST['city']) : ''; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="age">Age *</label>
+            <input type="number" id="age" name="age" min="18" max="100" value="<?php echo isset($_POST['age']) ? htmlspecialchars($_POST['age']) : ''; ?>" required>
+          </div>
+          <div class="form-group">
+            <label for="gender">Gender *</label>
+            <select id="gender" name="gender" required>
+              <option value="">Select gender</option>
+              <option value="M" <?php echo (isset($_POST['gender']) && $_POST['gender'] === 'M') ? 'selected' : ''; ?>>Male</option>
+              <option value="F" <?php echo (isset($_POST['gender']) && $_POST['gender'] === 'F') ? 'selected' : ''; ?>>Female</option>
+              <option value="O" <?php echo (isset($_POST['gender']) && $_POST['gender'] === 'O') ? 'selected' : ''; ?>>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone *</label>
+            <input type="text" id="phone" name="phone" maxlength="15" value="<?php echo isset($_POST['phone']) ? htmlspecialchars($_POST['phone']) : ''; ?>" required>
+          </div>
           <div class="form-group">
             <label for="email">Email Address *</label>
             <input type="email" id="email" name="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" required>
           </div>
-
+          <div class="form-group">
+            <label for="username">Username *</label>
+            <input type="text" id="username" name="username" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>" required>
+          </div>
           <div class="form-group">
             <label for="password">Password *</label>
             <input type="password" id="password" name="password" required>
             <small style="color: #666;">Minimum 6 characters</small>
           </div>
-
           <div class="form-group">
             <label for="confirm_password">Confirm Password *</label>
             <input type="password" id="confirm_password" name="confirm_password" required>
           </div>
-
           <div class="form-group">
             <label for="role">Role *</label>
             <select id="role" name="role" required>
@@ -285,7 +318,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
               <option value="delivery" <?php echo (isset($_POST['role']) && $_POST['role'] === 'delivery') ? 'selected' : ''; ?>>Delivery Staff</option>
             </select>
           </div>
-
           <button type="submit" class="btn btn-primary">Register Staff Member</button>
           <a href="../authentication/login.php" class="btn btn-success" style="margin-left: 10px;">Back to Login</a>
         </form>

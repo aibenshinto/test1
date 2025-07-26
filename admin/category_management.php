@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_category'])) {
         $cat_name = trim($_POST['cat_name']);
         if (!empty($cat_name)) {
-            $stmt = $conn->prepare("INSERT INTO categories (cat_name) VALUES (?)");
+            $stmt = $conn->prepare("INSERT INTO tbl_category (cat_name) VALUES (?)");
             $stmt->bind_param("s", $cat_name);
             if ($stmt->execute()) {
                 $message = "Category added successfully!";
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cat_id = intval($_POST['cat_id']);
         $cat_name = trim($_POST['cat_name']);
         if (!empty($cat_name) && $cat_id > 0) {
-            $stmt = $conn->prepare("UPDATE categories SET cat_name = ? WHERE cat_id = ?");
+            $stmt = $conn->prepare("UPDATE tbl_category SET cat_name = ? WHERE cat_id = ?");
             $stmt->bind_param("si", $cat_name, $cat_id);
             if ($stmt->execute()) {
                 $message = "Category updated successfully!";
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Handle category deletion
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $cat_id_to_delete = intval($_GET['delete']);
-    $delete_stmt = $conn->prepare("DELETE FROM categories WHERE cat_id = ?");
+    $delete_stmt = $conn->prepare("DELETE FROM tbl_category WHERE cat_id = ?");
     $delete_stmt->bind_param("i", $cat_id_to_delete);
     if ($delete_stmt->execute()) {
         $message = "Category deleted successfully!";
@@ -59,7 +59,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 // Check if we are in edit mode
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $cat_id_to_edit = intval($_GET['edit']);
-    $edit_stmt = $conn->prepare("SELECT * FROM categories WHERE cat_id = ?");
+    $edit_stmt = $conn->prepare("SELECT * FROM tbl_category WHERE cat_id = ?");
     $edit_stmt->bind_param("i", $cat_id_to_edit);
     $edit_stmt->execute();
     $edit_result = $edit_stmt->get_result();
@@ -67,7 +67,7 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
 }
 
 // Fetch all categories
-$sql = "SELECT * FROM categories ORDER BY cat_name";
+$sql = "SELECT * FROM tbl_category ORDER BY cat_name";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>

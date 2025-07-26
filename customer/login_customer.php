@@ -160,7 +160,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="user-box">
                 <input type="password" name="password" id="password" required placeholder=" ">
                 <label for="password">Password</label>
-                <span class="toggle-password" onclick="togglePassword()">👁️</span>
             </div>
             <div class="button-box">
                 <button type="submit">Login</button>

@@ -33,13 +33,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id']) && isset(
     } else {
         $error = "Failed to update order status.";
     }
+    $stmt->close();
 }
 
 // Fetch all orders with customer and item details
-$sql = "SELECT o.*, c.name as customer_name, c.email as customer_email,
+$sql = "SELECT o.*, CONCAT(c.Cust_fname, ' ', c.Cust_lname) as customer_name, c.Cust_email as customer_email,
                GROUP_CONCAT(CONCAT(i.Item_name, ' (', oi.quantity, ')') SEPARATOR ', ') as items
         FROM orders o
-        JOIN customers c ON o.customer_id = c.id
+        JOIN tbl_customer c ON o.customer_id = c.Cust_id
         JOIN order_items oi ON o.id = oi.order_id
         JOIN tbl_item i ON oi.item_id = i.Item_id
         GROUP BY o.id
@@ -201,14 +202,14 @@ $result = $conn->query($sql);
       <h2><?php echo ucfirst($user_role); ?> Panel</h2>
       <p>Hello, <?= htmlspecialchars(getCurrentUsername()) ?> <span class="role-badge"><?php echo ucfirst($user_role); ?></span></p>
       <ul>
-        <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
+        <li><a href="<?php echo $user_role === 'delivery' ? 'delivery_dashboard.php' : 'staff_dashboard.php'; ?>">Staff Dashboard</a></li>
         <?php if ($user_role === 'product_manager'): ?>
           <li><a href="staff_products.php">Manage Products</a></li>
           <li><a href="add_product.php">Add Product</a></li>
           <li><a href="staff_qna.php">Customer Q&A</a></li>
         <?php endif; ?>
         <?php if ($user_role === 'delivery'): ?>
-          <li><a href="delivery_dashboard.php">Delivery Orders</a></li>
+          <!-- <li><a href="delivery_dashboard.php">Delivery Orders</a></li> -->
         <?php endif; ?>
         <li><a href="view_orders.php">All Orders</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
@@ -229,7 +230,7 @@ $result = $conn->query($sql);
 
       <div class="section">
         <h3>Order List</h3>
-        <?php if ($result->num_rows > 0): ?>
+        <?php if ($result && $result->num_rows > 0): ?>
           <table>
             <thead>
               <tr>
@@ -250,8 +251,7 @@ $result = $conn->query($sql);
                   <td>
                     <strong><?php echo htmlspecialchars($order['customer_name']); ?></strong><br>
                     <div class="order-details">
-                      <?php echo htmlspecialchars($order['customer_email']); ?><br>
-                      <?php echo htmlspecialchars($order['customer_phone']); ?>
+                      <?php echo htmlspecialchars($order['customer_email']); ?>
                     </div>
                   </td>
                   <td><?php echo htmlspecialchars($order['items']); ?></td>
@@ -286,4 +286,4 @@ $result = $conn->query($sql);
     </main>
   </div>
 </body>
-</html> 
+</html>

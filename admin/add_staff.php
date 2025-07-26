@@ -21,7 +21,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Invalid role selected.";
     } else {
         // Check if email already exists
-        $stmt = $conn->prepare("SELECT id FROM staff WHERE email = ?");
+        $stmt = $conn->prepare("SELECT Staff_id FROM tbl_staff WHERE Staff_email = ?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $stmt->store_result();
@@ -32,8 +32,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Hash the password
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-            $insert_stmt = $conn->prepare("INSERT INTO staff (name, email, password, role) VALUES (?, ?, ?, ?)");
-            $insert_stmt->bind_param("ssss", $name, $email, $hashed_password, $role);
+            // Update insert to use all required fields
+            $insert_stmt = $conn->prepare("INSERT INTO tbl_staff (Staff_id, Staff_fname, Staff_lname, Staff_street, Staff_city, Staff_age, Staff_gender, Staff_ph, Staff_email, Staff_DOJ, Username, Password, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $staff_id = 'STF' . bin2hex(random_bytes(3));
+            $staff_fname = $name; // You may want to split name into fname/lname
+            $staff_lname = '';
+            $staff_street = '';
+            $staff_city = '';
+            $staff_age = 0;
+            $staff_gender = '';
+            $staff_ph = '';
+            $staff_doj = date('Y-m-d');
+            $username = $email;
+            $insert_stmt->bind_param("sssssisisssss", $staff_id, $staff_fname, $staff_lname, $staff_street, $staff_city, $staff_age, $staff_gender, $staff_ph, $email, $staff_doj, $username, $hashed_password, $role);
 
             if ($insert_stmt->execute()) {
                 $message = "Staff member added successfully!";

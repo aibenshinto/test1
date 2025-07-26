@@ -4,11 +4,16 @@ include '../db_connect.php';
 
 requireProductManager();
 
+// Generate CSRF token if not set
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $message = '';
 $error = '';
 
 // Fetch vendors and items for dropdowns
-$vendors_result = $conn->query("SELECT vendor_id, vendor_name FROM vendors ORDER BY vendor_name");
+$vendors_result = $conn->query("SELECT vendor_id, vendor_name FROM tbl_vendor ORDER BY vendor_name");
 $products_result = $conn->query("SELECT Item_id, Item_name FROM tbl_item ORDER BY Item_name");
 
 $edit_order_id = isset($_GET['edit_order']) ? $_GET['edit_order'] : null;
@@ -22,106 +27,143 @@ if ($edit_order_id) {
     while ($row = $items_result->fetch_assoc()) {
         $current_order_items[] = $row;
     }
+    $items_stmt->close();
 }
-
 
 // Handle Create Purchase Order
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_purchase_order'])) {
-    $vendor_id = $_POST['vendor_id'];
-    $p_date = date('Y-m-d');
-    
-    // Generate unique P_mid
-    $p_mid = 'P' . substr(uniqid(), -5);
-
-    if (!empty($vendor_id)) {
-        // Start with total amount 0, it will be updated as items are added
-        $stmt = $conn->prepare("INSERT INTO tb1_purchase_master (P_mid, Vendor_id, P_date, Total_amt) VALUES (?, ?, ?, 0)");
-        $stmt->bind_param("sss", $p_mid, $vendor_id, $p_date);
-        if ($stmt->execute()) {
-            $message = "Purchase order #$p_mid created successfully! You can now add items to it.";
-        } else {
-            $error = "Failed to create purchase order.";
-        }
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error = "Invalid CSRF token.";
     } else {
-        $error = "Please select a vendor.";
+        $vendor_id = trim($_POST['vendor_id']);
+        $p_date = date('Y-m-d');
+
+        // Validate vendor_id
+        $vendor_check = $conn->prepare("SELECT vendor_id FROM tbl_vendor WHERE vendor_id = ?");
+        $vendor_check->bind_param("s", $vendor_id);
+        $vendor_check->execute();
+        $vendor_check_result = $vendor_check->get_result();
+
+        if (!empty($vendor_id) && $vendor_check_result->num_rows > 0) {
+            // Generate unique P_mid
+            $p_mid = 'P' . substr(uniqid(), -5);
+
+            $stmt = $conn->prepare("INSERT INTO tb1_purchase_master (P_mid, Vendor_id, P_date, Total_amt) VALUES (?, ?, ?, 0)");
+            $stmt->bind_param("sss", $p_mid, $vendor_id, $p_date);
+            if ($stmt->execute()) {
+                $message = "Purchase order #$p_mid created successfully! You can now add items to it.";
+                header("Location: purchase_management.php?message=" . urlencode($message));
+                exit;
+            } else {
+                $error = "Failed to create purchase order: " . $conn->error;
+            }
+            $stmt->close();
+        } else {
+            $error = "Please select a valid vendor.";
+        }
+        $vendor_check->close();
     }
 }
 
 // Handle Add Item to Purchase Order
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
-    $p_mid = $_POST['p_mid'];
-    $item_id = $_POST['item_id'];
-    $p_qty = intval($_POST['p_qty']);
-    $p_rate = floatval($_POST['p_rate']);
-
-    // Generate unique P_cid
-    $p_cid = 'C' . substr(uniqid(), -5);
-    
-    if (!empty($p_mid) && !empty($item_id) && $p_qty > 0 && $p_rate > 0) {
-        $conn->begin_transaction();
-        try {
-            // Insert into child table
-            $stmt = $conn->prepare("INSERT INTO tbl_purchase_child (P_cid, P_mid, item_id, P_qty, P_rate) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssid", $p_cid, $p_mid, $item_id, $p_qty, $p_rate);
-            $stmt->execute();
-            
-            // Update total amount in master table
-            $item_total = $p_qty * $p_rate;
-            $update_stmt = $conn->prepare("UPDATE tb1_purchase_master SET Total_amt = Total_amt + ? WHERE P_mid = ?");
-            $update_stmt->bind_param("ds", $item_total, $p_mid);
-            $update_stmt->execute();
-            
-            $conn->commit();
-            $message = "Item added to purchase order #$p_mid successfully!";
-        } catch (Exception $e) {
-            $conn->rollback();
-            $error = "Failed to add item. Error: " . $e->getMessage();
-        }
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error = "Invalid CSRF token.";
     } else {
-        $error = "Please fill in all item details correctly.";
+        $p_mid = trim($_POST['p_mid']);
+        $item_id = trim($_POST['item_id']);
+        $p_qty = intval($_POST['p_qty']);
+        $p_rate = floatval($_POST['p_rate']);
+
+        // Validate p_mid and item_id
+        $order_check = $conn->prepare("SELECT P_mid FROM tb1_purchase_master WHERE P_mid = ?");
+        $order_check->bind_param("s", $p_mid);
+        $order_check->execute();
+        $order_check_result = $order_check->get_result();
+
+        $item_check = $conn->prepare("SELECT Item_id FROM tbl_item WHERE Item_id = ?");
+        $item_check->bind_param("s", $item_id);
+        $item_check->execute();
+        $item_check_result = $item_check->get_result();
+
+        if (!empty($p_mid) && !empty($item_id) && $p_qty > 0 && $p_rate > 0 && $order_check_result->num_rows > 0 && $item_check_result->num_rows > 0) {
+            // Generate unique P_cid
+            $p_cid = 'C' . substr(uniqid(), -5);
+
+            $conn->begin_transaction();
+            try {
+                // Insert into child table
+                $stmt = $conn->prepare("INSERT INTO tbl_purchase_child (P_cid, P_mid, item_id, P_qty, P_rate) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssid", $p_cid, $p_mid, $item_id, $p_qty, $p_rate);
+                $stmt->execute();
+
+                // Update total amount in master table
+                $item_total = $p_qty * $p_rate;
+                $update_stmt = $conn->prepare("UPDATE tb1_purchase_master SET Total_amt = Total_amt + ? WHERE P_mid = ?");
+                $update_stmt->bind_param("ds", $item_total, $p_mid);
+                $update_stmt->execute();
+
+                $conn->commit();
+                $message = "Item added to purchase order #$p_mid successfully!";
+                header("Location: purchase_management.php?message=" . urlencode($message));
+                exit;
+            } catch (Exception $e) {
+                $conn->rollback();
+                $error = "Failed to add item: " . $e->getMessage();
+            }
+            $stmt->close();
+            $update_stmt->close();
+        } else {
+            $error = "Please fill in all item details correctly or ensure valid purchase order and item.";
+        }
+        $order_check->close();
+        $item_check->close();
     }
 }
 
 // Handle Remove Item from Purchase Order
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_item'])) {
-    $p_cid_to_remove = $_POST['p_cid'];
-    $p_mid_of_item = $_POST['p_mid'];
-    $item_qty = intval($_POST['item_qty']);
-    $item_rate = floatval($_POST['item_rate']);
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error = "Invalid CSRF token.";
+    } else {
+        $p_cid_to_remove = trim($_POST['p_cid']);
+        $p_mid_of_item = trim($_POST['p_mid']);
+        $item_qty = intval($_POST['item_qty']);
+        $item_rate = floatval($_POST['item_rate']);
 
-    $conn->begin_transaction();
-    try {
-        // Delete from child table
-        $stmt = $conn->prepare("DELETE FROM tbl_purchase_child WHERE P_cid = ?");
-        $stmt->bind_param("s", $p_cid_to_remove);
-        $stmt->execute();
-        
-        // Update total amount in master table
-        $item_total_to_remove = $item_qty * $item_rate;
-        $update_stmt = $conn->prepare("UPDATE tb1_purchase_master SET Total_amt = Total_amt - ? WHERE P_mid = ?");
-        $update_stmt->bind_param("ds", $item_total_to_remove, $p_mid_of_item);
-        $update_stmt->execute();
-        
-        $conn->commit();
-        $message = "Item removed successfully!";
-        // Refresh the page to show the updated item list
-        header("Location: purchase_management.php?edit_order=" . urlencode($p_mid_of_item));
-        exit;
-    } catch (Exception $e) {
-        $conn->rollback();
-        $error = "Failed to remove item. Error: " . $e->getMessage();
+        $conn->begin_transaction();
+        try {
+            // Delete from child table
+            $stmt = $conn->prepare("DELETE FROM tbl_purchase_child WHERE P_cid = ?");
+            $stmt->bind_param("s", $p_cid_to_remove);
+            $stmt->execute();
+
+            // Update total amount in master table
+            $item_total_to_remove = $item_qty * $item_rate;
+            $update_stmt = $conn->prepare("UPDATE tb1_purchase_master SET Total_amt = Total_amt - ? WHERE P_mid = ?");
+            $update_stmt->bind_param("ds", $item_total_to_remove, $p_mid_of_item);
+            $update_stmt->execute();
+
+            $conn->commit();
+            $message = "Item removed successfully!";
+            header("Location: purchase_management.php?edit_order=" . urlencode($p_mid_of_item) . "&message=" . urlencode($message));
+            exit;
+        } catch (Exception $e) {
+            $conn->rollback();
+            $error = "Failed to remove item: " . $e->getMessage();
+        }
+        $stmt->close();
+        $update_stmt->close();
     }
 }
-
 
 // Fetch all purchase orders
 $purchases = $conn->query("
     SELECT pm.P_mid, pm.P_date, pm.Total_amt, v.vendor_name 
     FROM tb1_purchase_master pm 
-    JOIN vendors v ON pm.Vendor_id = v.vendor_id 
+    JOIN tbl_vendor v ON pm.Vendor_id = v.vendor_id 
     ORDER BY pm.P_date DESC
 ");
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -148,20 +190,28 @@ $purchases = $conn->query("
         <h2>Purchase Management</h2>
         <p>Create purchase orders and add items from vendors.</p>
         
-        <?php if ($message): ?><div class="message success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
-        <?php if ($error): ?><div class="message error"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
+        <?php if ($message || (isset($_GET['message']) && $_GET['message'])): ?>
+            <div class="message success"><?php echo htmlspecialchars($message ?: $_GET['message']); ?></div>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="message error"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
 
         <!-- Create Purchase Order Section -->
         <div class="section">
             <h3>Create New Purchase Order</h3>
             <form method="post">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <div class="form-group">
                     <label for="vendor_id">Select Vendor *</label>
                     <select id="vendor_id" name="vendor_id" required>
                         <option value="">Choose a vendor...</option>
-                        <?php while ($vendor = $vendors_result->fetch_assoc()) {
+                        <?php 
+                        mysqli_data_seek($vendors_result, 0); // Reset pointer
+                        while ($vendor = $vendors_result->fetch_assoc()) {
                             echo "<option value='" . htmlspecialchars($vendor['vendor_id']) . "'>" . htmlspecialchars($vendor['vendor_name']) . "</option>";
-                        } ?>
+                        } 
+                        ?>
                     </select>
                 </div>
                 <button type="submit" name="create_purchase_order" class="btn btn-primary">Create Order</button>
@@ -172,6 +222,7 @@ $purchases = $conn->query("
         <div class="section">
             <h3>Add Item to Purchase Order</h3>
             <form method="post">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <div class="form-group">
                     <label for="p_mid">Select Purchase Order # *</label>
                     <select id="p_mid" name="p_mid" required>
@@ -181,6 +232,7 @@ $purchases = $conn->query("
                         while ($order = $purchases_for_dropdown->fetch_assoc()) {
                             echo "<option value='" . htmlspecialchars($order['P_mid']) . "'>" . htmlspecialchars($order['P_mid']) . "</option>";
                         }
+                        $purchases_for_dropdown->close();
                         ?>
                     </select>
                 </div>
@@ -188,7 +240,8 @@ $purchases = $conn->query("
                     <label for="item_id">Select Product *</label>
                     <select id="item_id" name="item_id" required>
                         <option value="">Choose a product...</option>
-                        <?php mysqli_data_seek($products_result, 0); // Reset pointer
+                        <?php 
+                        mysqli_data_seek($products_result, 0); // Reset pointer
                         while ($product = $products_result->fetch_assoc()) {
                             echo "<option value='" . htmlspecialchars($product['Item_id']) . "'>" . htmlspecialchars($product['Item_name']) . "</option>";
                         }
@@ -227,6 +280,7 @@ $purchases = $conn->query("
                         <td>₹<?php echo number_format($item['P_rate'], 2); ?></td>
                         <td>
                             <form method="post" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <input type="hidden" name="p_cid" value="<?php echo $item['P_cid']; ?>">
                                 <input type="hidden" name="p_mid" value="<?php echo $edit_order_id; ?>">
                                 <input type="hidden" name="item_qty" value="<?php echo $item['P_qty']; ?>">
@@ -243,4 +297,10 @@ $purchases = $conn->query("
     </main>
 </div>
 </body>
-</html> 
+</html>
+<?php
+$vendors_result->close();
+$products_result->close();
+$purchases->close();
+$conn->close();
+?>

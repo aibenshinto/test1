@@ -9,7 +9,7 @@ requireCustomer();
 checkSessionTimeout(30);
 
 // Fetch categories for the filter
-$categories_result = $conn->query("SELECT * FROM categories ORDER BY cat_name");
+$categories_result = $conn->query("SELECT * FROM tbl_category ORDER BY cat_name");
 ?>
 <!DOCTYPE html>
 <html>

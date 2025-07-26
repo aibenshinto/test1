@@ -182,8 +182,8 @@ $unassigned_orders = getDeliveryOrders($conn); // Get all delivery orders for as
       <h2>Delivery Panel</h2>
       <p>Hello, <?= htmlspecialchars(getCurrentUsername()) ?> <span class="role-badge">Delivery</span></p>
       <ul>
-        <li><a href="staff_dashboard.php">Staff Dashboard</a></li>
-        <li><a href="delivery_dashboard.php">Delivery Orders</a></li>
+        <li><a href="delivery_dashboard.php">Staff Dashboard</a></li>
+        <!-- <li><a href="delivery_dashboard.php">Delivery Orders</a></li> -->
         <li><a href="view_orders.php">All Orders</a></li>
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
       </ul>
@@ -327,4 +327,4 @@ $unassigned_orders = getDeliveryOrders($conn); // Get all delivery orders for as
     </main>
   </div>
 </body>
-</html> 
+</html>

@@ -305,7 +305,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ask_question']) && $is
             <p><a href="login_customer.php" style="color: #2d89e6;">Login to add to cart</a></p>
         <?php endif; ?>
         <a href="checkout_single.php?id=<?php echo urlencode($product['Item_id']); ?>">Buy Now</a>
-        <a href="product_qna.php?id=<?php echo urlencode($id); ?>" class="qna">Q&A</a>
+        <!-- <a href="product_qna.php?id=<?php echo urlencode($id); ?>" class="qna">Q&A</a> -->
     </div>
 
     <br><a href="customer_dashboard.php">← Back to Customer Dashboard</a>

@@ -131,7 +131,7 @@ $staff_name = getCurrentUsername();
         <li><a href="vendor_management.php">Manage Vendors</a></li>
         <li><a href="purchase_management.php">Manage Purchases</a></li>
         <li><a href="add_product.php">Add Product</a></li>
-        <li><a href="staff_qna.php">Customer Q&A</a></li>
+        <!-- <li><a href="staff_qna.php">Customer Q&A</a></li> -->
         <li><a class="logout-link" href="../authentication/logout.php">Logout</a></li>
       </ul>
     </aside>

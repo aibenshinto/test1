@@ -6,7 +6,7 @@ session_start();
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['user_type'] === 'staff') {
         if ($_SESSION['role'] === 'delivery') {
-            header("Location: ../staff/delivery_dashboard.php");
+            header("Location: ../staff/view_orders.php");
         } else {
             header("Location: ../staff/staff_dashboard.php");
         }

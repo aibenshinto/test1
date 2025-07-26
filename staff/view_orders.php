@@ -202,12 +202,12 @@ $result = $conn->query($sql);
       <h2><?php echo ucfirst($user_role); ?> Panel</h2>
       <p>Hello, <?= htmlspecialchars(getCurrentUsername()) ?> <span class="role-badge"><?php echo ucfirst($user_role); ?></span></p>
       <ul>
-        <li><a href="<?php echo $user_role === 'delivery' ? 'delivery_dashboard.php' : 'staff_dashboard.php'; ?>">Staff Dashboard</a></li>
+        <!-- <li><a href="<?php echo $user_role === 'delivery' ? 'delivery_dashboard.php' : 'staff_dashboard.php'; ?>">Staff Dashboard</a></li>
         <?php if ($user_role === 'product_manager'): ?>
           <li><a href="staff_products.php">Manage Products</a></li>
           <li><a href="add_product.php">Add Product</a></li>
           <li><a href="staff_qna.php">Customer Q&A</a></li>
-        <?php endif; ?>
+        <?php endif; ?> -->
         <?php if ($user_role === 'delivery'): ?>
           <!-- <li><a href="delivery_dashboard.php">Delivery Orders</a></li> -->
         <?php endif; ?>

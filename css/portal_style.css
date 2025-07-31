@@ -1,0 +1,87 @@
+/* General Body Styles */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    height: 100%;
+    color: #333; 
+}
+
+/* Background Image - Overlay Removed */
+body {
+    background-image: url('../uploads/Gemini_Generated_Image_6jm74u6jm74u6jm7.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+/* Main Portal Container using Flexbox for centering */
+.portal-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+    padding: 20px;
+}
+
+header h1 {
+    font-size: 2.8rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+header p {
+    font-size: 1.2rem;
+    color: #555;
+    margin-bottom: 3rem;
+}
+
+/* Container for the login cards */
+.login-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+}
+
+/* Styling for the individual login cards (now an 'a' tag) */
+.login-card {
+    background: rgba(255, 255, 255, 0.85); 
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 15px;
+    padding: 30px;
+    width: 280px;
+    box-shadow: 0 8px 25px 0 rgba(0, 0, 0, 0.15); 
+    transition: transform 0.3s ease;
+    
+    /* --- These are the crucial lines to make the link look like a card --- */
+    display: block; /* Ensures the link takes up the full card space */
+    text-decoration: none; /* This removes the underline */
+    color: inherit; /* This makes the text use the parent's color */
+}
+
+.login-card:hover {
+    transform: translateY(-10px);
+}
+
+.card-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.login-card h2 {
+    margin-top: 0;
+    font-size: 1.8rem;
+}
+
+.login-card p {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #444;
+}
+
+/* The .btn styles have been removed as they are no longer needed */

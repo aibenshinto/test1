@@ -4,237 +4,240 @@ include '../db_connect.php';
 include '../delivery_utils.php';
 
 requireCustomer();
-
-// Optional: Check session timeout (30 minutes)
 checkSessionTimeout(30);
 
-// Generate CSRF token if not set
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $customer_id = getCurrentUserId();
 $cart_mid = isset($_GET['cart_mid']) ? $_GET['cart_mid'] : null;
-$message = '';
 $error = '';
+$message = isset($_GET['message']) ? htmlspecialchars($_GET['message']) : '';
 
 // Validate cart_mid
 if (!$cart_mid) {
-    $error = "No cart selected. <a href='customer_cart.php'>Go back to cart</a>";
-} else {
-    $cart_check_stmt = $conn->prepare("SELECT cart_mid FROM tbl_cart_master WHERE cart_mid = ? AND cust_id = ? AND status = 'Active'");
-    $cart_check_stmt->bind_param("ss", $cart_mid, $customer_id);
-    $cart_check_stmt->execute();
-    $cart_check_result = $cart_check_stmt->get_result();
-    if ($cart_check_result->num_rows === 0) {
-        $error = "Invalid or inactive cart. <a href='customer_cart.php'>Go back to cart</a>";
+    die("No cart selected. <a href='customer_cart.php'>Go back to cart</a>");
+}
+
+$cart_check_stmt = $conn->prepare("SELECT cart_mid FROM tbl_cart_master WHERE cart_mid = ? AND cust_id = ? AND status = 'Active'");
+$cart_check_stmt->bind_param("ss", $cart_mid, $customer_id);
+$cart_check_stmt->execute();
+if ($cart_check_stmt->get_result()->num_rows === 0) {
+    die("Invalid or inactive cart. <a href='customer_cart.php'>Go back to cart</a>");
+}
+$cart_check_stmt->close();
+
+// Handle Add New Card
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_card'])) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $error = "Invalid CSRF token.";
+    } else {
+        $card_name = trim($_POST['card_name']);
+        $card_no = trim($_POST['card_no']);
+        $card_expiry_month = trim($_POST['card_expiry']);
+        $card_expiry_date = $card_expiry_month . '-01';
+
+        if (empty($card_name) || empty($card_no) || empty($card_expiry_month)) {
+            $error = "Please fill in all card details.";
+        } elseif (!preg_match('/^\d{16}$/', $card_no)) {
+            $error = "Invalid card number. It must be 16 digits.";
+        } else {
+            $insert_card_stmt = $conn->prepare("INSERT INTO tbl_card (cust_id, card_name, card_no, card_expiry) VALUES (?, ?, ?, ?)");
+            $insert_card_stmt->bind_param("ssss", $customer_id, $card_name, $card_no, $card_expiry_date);
+            if ($insert_card_stmt->execute()) {
+                header("Location: checkout.php?cart_mid=" . urlencode($cart_mid) . "&message=Card added successfully!");
+                exit;
+            } else {
+                $error = "Failed to add new card.";
+            }
+            $insert_card_stmt->close();
+        }
     }
-    $cart_check_stmt->close();
 }
 
-if ($error) {
-    // Display error and exit
-    ?>
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Checkout Error</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-            .error-message { background: #ffefef; color: #c0392b; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #c0392b; }
-        </style>
-    </head>
-    <body>
-        <div class="error-message"><?php echo $error; ?></div>
-    </body>
-    </html>
-    <?php
-    $conn->close();
-    exit;
+// Handle Proceed to Payment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['proceed_to_payment'])) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $error = "Invalid CSRF token.";
+    } elseif (empty($_POST['card_id'])) {
+        $error = "Please select a payment card.";
+    } else {
+        // Redirect to payment_processing.php
+        echo '<form id="paymentForm" method="post" action="payment_processing.php">';
+        echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
+        echo '<input type="hidden" name="cart_mid" value="' . htmlspecialchars($cart_mid) . '">';
+        echo '<input type="hidden" name="total_amount" value="' . floatval($_POST['total_amount']) . '">';
+        echo '<input type="hidden" name="delivery_fee" value="' . floatval($_POST['delivery_fee']) . '">';
+        echo '<input type="hidden" name="delivery_type" value="' . htmlspecialchars($_POST['delivery_type']) . '">';
+        echo '<input type="hidden" name="delivery_distance" value="' . floatval($_POST['delivery_distance']) . '">';
+        echo '<input type="hidden" name="delivery_address" value="' . htmlspecialchars($_POST['delivery_address']) . '">';
+        echo '<input type="hidden" name="card_id" value="' . htmlspecialchars($_POST['card_id']) . '">';
+        echo '</form><script>document.getElementById("paymentForm").submit();</script>';
+        exit;
+    }
 }
 
-// Get customer details including coordinates
-$customer_sql = "SELECT Cust_fname AS name, Cust_street, Cust_city, Cust_state, latitude, longitude FROM tbl_customer WHERE Cust_id = ?";
+
+// Fetch customer details, saved cards, and cart items
+$customer_sql = "SELECT Cust_street, Cust_city, Cust_state, latitude, longitude FROM tbl_customer WHERE Cust_id = ?";
 $customer_stmt = $conn->prepare($customer_sql);
 $customer_stmt->bind_param("s", $customer_id);
 $customer_stmt->execute();
-$customer_result = $customer_stmt->get_result();
-$customer = $customer_result->fetch_assoc();
+$customer = $customer_stmt->get_result()->fetch_assoc();
 $customer_stmt->close();
 
-// Construct full address
-$location = $customer['Cust_street'];
-if ($customer['Cust_city']) {
-    $location .= ', ' . $customer['Cust_city'];
-}
-if ($customer['Cust_state']) {
-    $location .= ', ' . $customer['Cust_state'];
-}
+$saved_cards_stmt = $conn->prepare("SELECT card_id, card_name, card_no FROM tbl_card WHERE cust_id = ?");
+$saved_cards_stmt->bind_param("s", $customer_id);
+$saved_cards_stmt->execute();
+$saved_cards = $saved_cards_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$saved_cards_stmt->close();
 
-// Calculate delivery distance and fee
-$distance = 0;
-$delivery_fee = 0;
-$delivery_type = 'pickup';
-$delivery_message = '';
+$cart_items_sql = "SELECT cc.item_qty AS quantity, cc.item_rate AS price, i.Item_name AS name 
+                   FROM tbl_cart_child cc
+                   JOIN tbl_item i ON cc.item_id = i.Item_id
+                   WHERE cc.cart_mid = ?";
+$cart_items_stmt = $conn->prepare($cart_items_sql);
+$cart_items_stmt->bind_param("s", $cart_mid);
+$cart_items_stmt->execute();
+$cart_items_result = $cart_items_stmt->get_result();
+$cart_items = $cart_items_result->fetch_all(MYSQLI_ASSOC);
+$cart_items_stmt->close();
 
-if ($customer && $customer['latitude'] && $customer['longitude']) {
-    $distance = getDistanceFromWarehouse($customer['latitude'], $customer['longitude']);
-    $delivery_fee = calculateDeliveryFee($distance);
-    $delivery_type = getDeliveryType($distance);
-    $delivery_message = getDeliveryMessage($distance);
-} else {
-    $delivery_message = "Location coordinates not available. Please update your profile with coordinates for delivery calculation.";
+if (empty($cart_items)) {
+    die("This cart is empty. <a href='customer_cart.php'>Go back to cart</a>");
 }
 
-// Fetch cart items for the specific cart
-$sql = "SELECT cc.item_qty AS quantity, cc.item_rate AS price, i.Item_id AS product_id, i.Item_name AS name 
-        FROM tbl_cart_child cc
-        JOIN tbl_item i ON cc.item_id = i.Item_id
-        WHERE cc.cart_mid = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("s", $cart_mid);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows === 0) {
-    $error = "This cart is empty. <a href='customer_cart.php'>Go back to cart</a>";
-    $stmt->close();
-    $conn->close();
-    ?>
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Checkout Error</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-            .error-message { background: #ffefef; color: #c0392b; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #c0392b; }
-        </style>
-    </head>
-    <body>
-        <div class="error-message"><?php echo $error; ?></div>
-    </body>
-    </html>
-    <?php
-    exit;
-}
-
-$cart_items = [];
 $subtotal = 0;
-while ($row = $result->fetch_assoc()) {
-    $cart_items[] = $row;
-    $subtotal += $row['price'] * $row['quantity'];
+foreach ($cart_items as $item) {
+    $subtotal += $item['price'] * $item['quantity'];
 }
-$stmt->close();
 
+$location = implode(', ', array_filter([$customer['Cust_street'], $customer['Cust_city'], $customer['Cust_state']]));
+$distance = ($customer && !empty($customer['latitude'])) ? getDistanceFromWarehouse($customer['latitude'], $customer['longitude']) : 0;
+$delivery_fee = calculateDeliveryFee($distance);
+$delivery_type = getDeliveryType($distance);
+$delivery_message = getDeliveryMessage($distance);
 $grand_total = $subtotal + $delivery_fee;
 
+$conn->close();
+$active_page = '';
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Checkout - Cart #<?php echo htmlspecialchars($cart_mid); ?></title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-        .checkout-container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th, td { padding: 15px; border-bottom: 1px solid #ddd; text-align: left; }
-        th { background-color: #2d89e6; color: white; }
-        .delivery-info { background: #e8f4fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2d89e6; }
-        .delivery-info h3 { margin: 0 0 10px 0; color: #2d89e6; }
-        .total-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; }
-        .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
-        .grand-total { font-weight: bold; font-size: 18px; color: #2d89e6; border-top: 2px solid #ddd; padding-top: 10px; }
-        .pay-btn {
-            background: #4CAF50;
-            color: white;
-            padding: 12px 25px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 20px;
-            display: block;
-            width: 150px;
-            margin-left: auto;
-        }
-        .pay-btn:hover { background: #45a049; }
-        .back-link { color: #2d89e6; text-decoration: none; }
-        .back-link:hover { text-decoration: underline; }
-        .message.success { background: #e7f4e4; color: #2e7d32; padding: 10px; margin-bottom: 20px; border-left: 4px solid #2e7d32; border-radius: 5px; }
-        .message.error { background: #ffefef; color: #c0392b; padding: 10px; margin-bottom: 20px; border-left: 4px solid #c0392b; border-radius: 5px; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Synopsis</title>
+    <link rel="stylesheet" href="../css/checkout_cart_style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
+<header class="header">
+    <div class="header-logo"><a href="customer_dashboard.php">Synopsis</a></div>
+    <nav class="nav-links">
+        <a href="customer_dashboard.php">Products</a>
+        <a href="customer_orders.php">My Orders</a>
+    </nav>
+    <div class="header-user">
+        <a href="customer_cart.php" class="cart-icon"><i class="fas fa-shopping-cart"></i></a>
+        <div class="user-menu">
+             <i class="fas fa-user-circle"></i>
+             <span><?php echo htmlspecialchars(getCustomerName()); ?></span>
+             <div class="dropdown-content"><a href="logout.php">Logout</a></div>
+        </div>
+    </div>
+</header>
+
 <div class="checkout-container">
-    <h2>Confirm Your Order - Cart #<?php echo htmlspecialchars($cart_mid); ?></h2>
+    <h1>Checkout</h1>
+    <?php if ($error): ?><div class="error-message"><?php echo $error; ?></div><?php endif; ?>
+    <?php if ($message): ?><div class="success-message"><?php echo $message; ?></div><?php endif; ?>
 
-    <?php if ($message || (isset($_GET['message']) && $_GET['message'])): ?>
-        <div class="message success"><?php echo htmlspecialchars($message ?: $_GET['message']); ?></div>
-    <?php endif; ?>
-    <?php if ($error): ?>
-        <div class="message error"><?php echo htmlspecialchars($error); ?></div>
-    <?php endif; ?>
+    <div class="checkout-layout">
+        <div class="checkout-details">
+            <h3>Items in Cart #<?php echo htmlspecialchars($cart_mid); ?></h3>
+            <?php foreach ($cart_items as $item): ?>
+                <div class="cart-item">
+                    <div class="cart-item-info">
+                        <div class="name"><?php echo htmlspecialchars($item['name']); ?> (x<?php echo $item['quantity']; ?>)</div>
+                        <div class="price">₹<?php echo number_format($item['price'] * $item['quantity'], 2); ?></div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            
+            <h3>Delivery Information</h3>
+            <div class="delivery-info">
+                <p><strong>Your Location:</strong> <?php echo htmlspecialchars($location); ?></p>
+                <p><strong>Distance:</strong> <?php echo number_format($distance, 2); ?> km</p>
+                <p><strong>Type:</strong> <?php echo ucfirst($delivery_type); ?></p>
+                <p><strong>Note:</strong> <?php echo htmlspecialchars($delivery_message); ?></p>
+            </div>
+             <a href="customer_cart.php" class="back-link">← Back to Cart</a>
+        </div>
 
-    <div class="delivery-info">
-        <h3>Delivery Information</h3>
-        <p><strong>Your Location:</strong> <?php echo htmlspecialchars($location); ?></p>
-        <?php if ($customer['latitude'] && $customer['longitude']): ?>
-            <p><strong>Distance from Warehouse:</strong> <?php echo number_format($distance, 2); ?> km</p>
-        <?php endif; ?>
-        <p><strong>Delivery Type:</strong> <?php echo ucfirst($delivery_type); ?></p>
-        <p><strong>Message:</strong> <?php echo htmlspecialchars($delivery_message); ?></p>
+        <div class="checkout-sidebar">
+            <div class="order-summary">
+                <h3>Order Summary</h3>
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <div class="summary-row">
+                        <span>Subtotal:</span>
+                        <span>₹<?php echo number_format($subtotal, 2); ?></span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Delivery Fee:</span>
+                        <span>₹<?php echo number_format($delivery_fee, 2); ?></span>
+                    </div>
+                    <div class="summary-row summary-total">
+                        <span>Grand Total:</span>
+                        <span>₹<?php echo number_format($grand_total, 2); ?></span>
+                    </div>
+                    
+                    <div class="summary-row">
+                        <label for="card_id" style="font-weight: bold;">Select Card to Pay</label>
+                        <select id="card_id" name="card_id" class="select-input" required>
+                            <option value="">-- Select a Saved Card --</option>
+                            <?php foreach ($saved_cards as $card): ?>
+                                <option value="<?php echo $card['card_id']; ?>">
+                                    <?php echo htmlspecialchars($card['card_name']) . ' - **** ' . substr($card['card_no'], -4); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <input type="hidden" name="total_amount" value="<?php echo $grand_total; ?>">
+                    <input type="hidden" name="delivery_fee" value="<?php echo $delivery_fee; ?>">
+                    <input type="hidden" name="delivery_type" value="<?php echo htmlspecialchars($delivery_type); ?>">
+                    <input type="hidden" name="delivery_distance" value="<?php echo $distance; ?>">
+                    <input type="hidden" name="delivery_address" value="<?php echo htmlspecialchars($location); ?>">
+                    <button type="submit" name="proceed_to_payment" class="btn-pay">Pay Now</button>
+                </form>
+            </div>
+
+            <div class="payment-card">
+                <h3>Add a New Card</h3>
+                <form method="post" id="addCardForm">
+                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <div class="form-group">
+                        <label for="card_name">Name on Card</label>
+                        <input type="text" id="card_name" name="card_name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="card_no">Card Number</label>
+                        <input type="text" id="card_no" name="card_no" class="form-control" required pattern="\d{16}" title="16-digit card number">
+                    </div>
+                    <div class="form-group">
+                        <label for="card_expiry">Expiry Date</label>
+                        <input type="month" id="card_expiry" name="card_expiry" class="form-control" required>
+                    </div>
+                    <button type="submit" name="add_new_card" class="btn-secondary">Save Card</button>
+                </form>
+            </div>
+        </div>
     </div>
-
-    <table>
-        <tr>
-            <th>Product</th>
-            <th>Price (₹)</th>
-            <th>Quantity</th>
-            <th>Total (₹)</th>
-        </tr>
-        <?php foreach ($cart_items as $item): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($item['name']); ?></td>
-                <td><?php echo number_format($item['price'], 2); ?></td>
-                <td><?php echo $item['quantity']; ?></td>
-                <td><?php echo number_format($item['price'] * $item['quantity'], 2); ?></td>
-            </tr>
-        <?php endforeach; ?>
-    </table>
-
-    <div class="total-section">
-        <div class="total-row">
-            <span>Subtotal:</span>
-            <span>₹<?php echo number_format($subtotal, 2); ?></span>
-        </div>
-        <div class="total-row">
-            <span>Delivery Fee:</span>
-            <span>₹<?php echo number_format($delivery_fee, 2); ?></span>
-        </div>
-        <div class="total-row grand-total">
-            <span>Grand Total:</span>
-            <span>₹<?php echo number_format($grand_total, 2); ?></span>
-        </div>
-    </div>
-
-    <form action="payment_processing.php" method="post">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="cart_mid" value="<?php echo htmlspecialchars($cart_mid); ?>">
-        <input type="hidden" name="total_amount" value="<?php echo $grand_total; ?>">
-        <input type="hidden" name="delivery_fee" value="<?php echo $delivery_fee; ?>">
-        <input type="hidden" name="delivery_type" value="<?php echo $delivery_type; ?>">
-        <input type="hidden" name="delivery_distance" value="<?php echo $distance; ?>">
-        <input type="hidden" name="delivery_address" value="<?php echo htmlspecialchars($location); ?>">
-        <button type="submit" class="pay-btn">Pay Now</button>
-    </form>
-
-    <br>
-    <a href="customer_cart.php" class="back-link">← Back to Cart</a>
 </div>
 
 </body>
 </html>
-<?php
-$conn->close();
-?>

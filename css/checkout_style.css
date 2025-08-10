@@ -4,7 +4,7 @@
     --primary-hover: #16a085; /* Darker Teal */
     --secondary-color: #556270; /* Cool Grey */
     --background-color: #ecf0f1; /* Light Grey Background */
-    --text-color: #2c3e50;       /* Deep Navy Text */
+    --text-color: #2c3e50;      /* Deep Navy Text */
     --card-background: #ffffff;
     --border-color: #bdc3c7;   /* Soft Grey Border */
     --success-color: #2ecc71;
@@ -180,12 +180,73 @@ body, html {
     margin-top: 15px;
 }
 
+/* --- REVISED & UNIFIED INPUT STYLES --- */
+/* This is the master rule for all text inputs and select dropdowns.
+   It ensures they all share the same base appearance. */
+.form-group .form-control,
+.payment-option .form-control,
+.payment-option .select-input,
 .quantity-input {
-    width: 70px;
-    padding: 10px;
+    /* Reset browser-specific styling */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+
+    /* Core styling for size and look */
+    width: 100%;
+    height: 48px; /* A fixed height for perfect alignment */
+    padding: 0 15px; /* Horizontal padding for text */
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    margin-top: 5px;
+    background-color: white;
+    font-size: 1rem;
+    box-sizing: border-box; /* Crucial for consistent sizing */
+    transition: border-color 0.3s ease;
+    line-height: 48px; /* Vertically center text in input */
+}
+
+/* Add a dropdown arrow back to the select element */
+.payment-option .select-input {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem; /* Make space for the arrow */
+}
+
+
+/* Special case for quantity input to have a fixed width */
+.quantity-input {
+    width: 70px;
+    text-align: center; /* Center the number */
+    padding: 0; /* Reset padding for smaller box */
+}
+
+
+/* --- Form & Input Styles --- */
+.form-group {
+    margin-bottom: 15px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* Hover and focus states for all inputs */
+.form-group .form-control:focus,
+.payment-option .form-control:focus,
+.payment-option .select-input:focus,
+.quantity-input:focus {
+    border-color: var(--primary-color); 
+    outline: none;
+    box-shadow: none;
+}
+
+.form-group .form-control::placeholder,
+.payment-option .form-control::placeholder {
+    color: #95a5a6;
 }
 
 .btn-pay {
@@ -231,24 +292,6 @@ body, html {
     font-weight: bold;
 }
 
-/* --- New Payment Method Styles --- */
-.form-group {
-    margin-bottom: 15px;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-.form-group .form-control {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    box-sizing: border-box;
-}
-
 .btn-secondary {
     width: 100%;
     padding: 12px;
@@ -267,12 +310,64 @@ body, html {
     background-color: #434e5a;
 }
 
-/* --- Order Summary --- */
-.select-input {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    box-sizing: border-box;
-    background-color: white;
+/* ======================================================= */
+/* --- FINAL CLEAN UI/UX FOR PAYMENT SELECTION --- */
+/* ======================================================= */
+.payment-selection {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+.payment-selection h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+.payment-option {
+    position: relative;
+    margin-bottom: 15px;
+}
+.payment-radio {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.payment-label {
+    display: block;
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    cursor: pointer;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+.payment-label:hover {
+    border-color: #95a5a6;
+}
+.payment-text {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px; /* Add space between text and content */
+}
+.payment-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--text-color);
+}
+/* Removed the description text */
+.payment-content {
+    /* No longer needs top margin or border */
+}
+.payment-radio:checked + .payment-label {
+    border-color: var(--primary-color);
+    background-color: #e8f8f5;
+}
+.info-message {
+    background: #e2f3fe;
+    color: #0c5460;
+    padding: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #0c5460;
+    font-size: 0.9rem;
 }

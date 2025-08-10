@@ -1,70 +1,52 @@
 <?php
 require_once '../session_manager.php';
-include '../db_connect.php';
-
 requireCustomer();
 
-// Check session timeout (30 minutes)
-checkSessionTimeout(30);
-
-$customer_id = getCurrentUserId();
-
-if (!isset($_GET['order_id'])) {
-    header("Location: customer_dashboard.php");
-    exit;
-}
-
-$order_id = intval($_GET['order_id']);
-
-// Validate order exists and belongs to customer
-$stmt = $conn->prepare("SELECT id FROM orders WHERE id = ? AND customer_id = ?");
-$stmt->bind_param("is", $order_id, $customer_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows === 0) {
-    $stmt->close();
-    $conn->close();
-    header("Location: customer_dashboard.php");
-    exit;
-}
-$stmt->close();
-$conn->close();
+$order_id = isset($_GET['order_id']) ? htmlspecialchars($_GET['order_id']) : 'N/A';
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Processing Payment</title>
-    <meta http-equiv="refresh" content="3;url=payment_done.php?order_id=<?php echo htmlspecialchars($order_id); ?>">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #fffbea;
-            text-align: center;
-            padding: 100px;
-        }
-        h2 {
-            font-size: 28px;
-            color: #444;
-        }
-        .loader {
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid #3498db;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            margin: 20px auto;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Payment - Synopsis</title>
+    <link rel="stylesheet" href="../css/payment_loading_style.css">
 </head>
 <body>
-    <h2>Processing your payment...</h2>
-    <div class="loader"></div>
+    <div class="payment-container">
+        <div class="animation-window">
+            <!-- The CSS animation is replaced with this video tag -->
+            <video id="rocketVideo" width="100%" height="100%" autoplay muted playsinline>
+                <source src="../uploads/Rocket Launch.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            
+            <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+                <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+        </div>
+
+        <h1 id="status-text">Processing Payment...</h1>
+        <p class="subtext">Your order #<?php echo $order_id; ?> is being confirmed.</p>
+    </div>
+
+    <script>
+        const container = document.querySelector('.payment-container');
+        const statusText = document.getElementById('status-text');
+        const rocketVideo = document.getElementById('rocketVideo');
+
+        // Listen for when the video has finished playing
+        rocketVideo.onended = function() {
+            // Step 1: Show the success state
+            container.classList.add('success');
+            statusText.textContent = 'Payment Successful!';
+            
+            // Step 2: Wait on the success screen, then redirect
+            setTimeout(function() {
+                window.location.href = 'customer_orders.php?message=Order #<?php echo $order_id; ?> placed successfully!';
+            }, 2000); // 2 second delay on success screen
+        };
+    </script>
 </body>
 </html>

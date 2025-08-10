@@ -44,8 +44,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Login</title>
-    <!-- Link to the new external stylesheet -->
+    <title>Customer Login - Synopsis</title>
+    <!-- Corrected link to the shared stylesheet -->
     <link rel="stylesheet" href="../css/login_style.css">
 </head>
 <body>

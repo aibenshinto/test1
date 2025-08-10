@@ -37,9 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_card'])) {
     } else {
         $card_name = trim($_POST['card_name']);
         $card_no = trim($_POST['card_no']);
-        $card_expiry_month = trim($_POST['card_expiry']); // YYYY-MM format
-        
-        // Append a day to make it a valid DATE for the database
+        $card_expiry_month = trim($_POST['card_expiry']);
         $card_expiry_date = $card_expiry_month . '-01';
 
         if (empty($card_name) || empty($card_no) || empty($card_expiry_month)) {
@@ -60,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_card'])) {
     }
 }
 
-// Handle Proceed to Payment
+// Payment Processing Logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['proceed_to_payment'])) {
     if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $error = "Invalid CSRF token.";
@@ -68,21 +66,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['proceed_to_payment'])
         $error = "Quantity must be at least 1.";
     } elseif (intval($_POST['quantity']) > $product['Item_qty']) {
         $error = "Insufficient stock.";
-    } elseif (empty($_POST['card_id'])) {
-        $error = "Please select a payment card.";
+    } elseif (empty($_POST['payment_method'])) {
+        $error = "Please select a payment method.";
     } else {
-        // Redirect to payment_process.php
-        echo '<form id="paymentForm" method="post" action="payment_process.php">';
-        echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
-        echo '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['Item_id']) . '">';
-        echo '<input type="hidden" name="quantity" value="' . intval($_POST['quantity']) . '">';
-        echo '<input type="hidden" name="delivery_fee" value="' . floatval($_POST['delivery_fee']) . '">';
-        echo '<input type="hidden" name="delivery_type" value="' . htmlspecialchars($_POST['delivery_type']) . '">';
-        echo '<input type="hidden" name="delivery_distance" value="' . floatval($_POST['delivery_distance']) . '">';
-        echo '<input type="hidden" name="delivery_address" value="' . htmlspecialchars($_POST['delivery_address']) . '">';
-        echo '<input type="hidden" name="card_id" value="' . htmlspecialchars($_POST['card_id']) . '">';
-        echo '</form><script>document.getElementById("paymentForm").submit();</script>';
-        exit;
+        $payment_method = $_POST['payment_method'];
+
+        if ($payment_method === 'card' && empty($_POST['card_id'])) {
+            $error = "Please select a payment card.";
+        } elseif ($payment_method === 'upi' && empty(trim($_POST['upi_id']))) {
+            $error = "Please enter your UPI ID.";
+        } elseif ($payment_method === 'upi' && !preg_match('/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/', trim($_POST['upi_id']))) {
+            $error = "Please enter a valid UPI ID format (e.g., yourname@bank).";
+        } else {
+            // Redirect to payment_process.php
+            echo '<form id="paymentForm" method="post" action="payment_process.php">';
+            echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
+            echo '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['Item_id']) . '">';
+            echo '<input type="hidden" name="quantity" value="' . intval($_POST['quantity']) . '">';
+            echo '<input type="hidden" name="total_amount" value="' . floatval($_POST['total_amount']) . '">';
+            echo '<input type="hidden" name="delivery_fee" value="' . floatval($_POST['delivery_fee']) . '">';
+            echo '<input type="hidden" name="delivery_type" value="' . htmlspecialchars($_POST['delivery_type']) . '">';
+            echo '<input type="hidden" name="delivery_distance" value="' . floatval($_POST['delivery_distance']) . '">';
+            echo '<input type="hidden" name="delivery_address" value="' . htmlspecialchars($_POST['delivery_address']) . '">';
+            
+            // Send payment method and identifier
+            echo '<input type="hidden" name="payment_method" value="' . htmlspecialchars($payment_method) . '">';
+            if ($payment_method === 'card') {
+                 echo '<input type="hidden" name="payment_identifier" value="' . htmlspecialchars($_POST['card_id']) . '">';
+            } else {
+                 echo '<input type="hidden" name="payment_identifier" value="' . htmlspecialchars(trim($_POST['upi_id'])) . '">';
+            }
+            
+            echo '</form><script>document.getElementById("paymentForm").submit();</script>';
+            exit;
+        }
     }
 }
 
@@ -99,12 +116,18 @@ $saved_cards_stmt->bind_param("s", $customer_id);
 $saved_cards_stmt->execute();
 $saved_cards = $saved_cards_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $saved_cards_stmt->close();
+$has_saved_cards = count($saved_cards) > 0;
 
 $location = implode(', ', array_filter([$customer['Cust_street'], $customer['Cust_city'], $customer['Cust_state']]));
 $distance = ($customer && !empty($customer['latitude'])) ? getDistanceFromWarehouse($customer['latitude'], $customer['longitude']) : 0;
 $delivery_fee = calculateDeliveryFee($distance);
 $delivery_type = getDeliveryType($distance);
 $delivery_message = getDeliveryMessage($distance);
+
+// Initial totals
+$initial_quantity = 1;
+$subtotal = $product['Item_rate'] * $initial_quantity;
+$grand_total = $subtotal + $delivery_fee;
 
 $conn->close();
 $active_page = '';
@@ -115,8 +138,24 @@ $active_page = '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkout - Synopsis</title>
-    <link rel="stylesheet" href="../css/checkout_style.css">
+    <link rel="stylesheet" href="../css/checkout_cart_style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Add a small style for the quantity input to make it look good in the summary */
+        .quantity-input {
+            width: 70px;
+            height: 38px;
+            text-align: center;
+            padding: 0 5px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 1rem;
+        }
+        .quantity-input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+    </style>
 </head>
 <body>
 
@@ -143,13 +182,14 @@ $active_page = '';
 
     <div class="checkout-layout">
         <div class="checkout-details">
-            <h3>Your Item</h3>
-            <div class="product-item">
-                <img src="../<?php echo htmlspecialchars($product['Item_image']); ?>" alt="Item Image">
-                <div class="product-item-info">
+            <h3>Item Details</h3>
+            <div class="cart-item">
+                <div class="cart-item-info">
                     <div class="name"><?php echo htmlspecialchars($product['Item_name']); ?></div>
-                    <div class="price">₹<?php echo number_format($product['Item_rate'], 2); ?></div>
-                    <p>Stock: <?php echo htmlspecialchars($product['Item_qty']); ?></p>
+                    <div class="price" data-rate="<?php echo $product['Item_rate']; ?>">
+                        Price: ₹<?php echo number_format($product['Item_rate'], 2); ?>
+                    </div>
+                     <p>Stock Available: <?php echo htmlspecialchars($product['Item_qty']); ?></p>
                 </div>
             </div>
             
@@ -168,40 +208,71 @@ $active_page = '';
                 <h3>Order Summary</h3>
                 <form method="post">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="summary-row">
-                        <span>Product Price:</span>
-                        <span>₹<?php echo number_format($product['Item_rate'], 2); ?></span>
-                    </div>
-                     <div class="summary-row">
-                        <label for="quantity">Quantity:</label>
-                        <input type="number" id="quantity" name="quantity" class="quantity-input" value="1" min="1" max="<?php echo $product['Item_qty']; ?>" required>
-                    </div>
-                    <div class="summary-row">
-                        <span>Delivery Fee:</span>
-                        <span>₹<?php echo number_format($delivery_fee, 2); ?></span>
-                    </div>
-                    <div class="summary-row summary-total">
-                        <span>Total Amount:</span>
-                        <span>₹<?php echo number_format(($product['Item_rate'] * 1) + $delivery_fee, 2); // Initial total based on quantity 1 ?></span>
-                    </div>
                     
                     <div class="summary-row">
-                        <label for="card_id" style="font-weight: bold;">Select Card to Pay</label>
-                        <select id="card_id" name="card_id" class="select-input" required>
-                            <option value="">-- Select a Saved Card --</option>
-                            <?php foreach ($saved_cards as $card): ?>
-                                <option value="<?php echo $card['card_id']; ?>">
-                                    <?php echo htmlspecialchars($card['card_name']) . ' - **** ' . substr($card['card_no'], -4); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <span>Subtotal:</span>
+                        <span id="subtotal-amount">₹<?php echo number_format($subtotal, 2); ?></span>
                     </div>
 
+                    <div class="summary-row">
+                        <label for="quantity">Quantity:</label>
+                        <input type="number" id="quantity" name="quantity" class="quantity-input" value="<?php echo $initial_quantity; ?>" min="1" max="<?php echo $product['Item_qty']; ?>" required>
+                    </div>
+
+                    <div class="summary-row">
+                        <span>Delivery Fee:</span>
+                        <span data-fee="<?php echo $delivery_fee; ?>">₹<?php echo number_format($delivery_fee, 2); ?></span>
+                    </div>
+
+                    <div class="summary-row summary-total">
+                        <span>Grand Total:</span>
+                        <span id="grand-total-amount">₹<?php echo number_format($grand_total, 2); ?></span>
+                    </div>
+                    
+                    <div class="payment-selection">
+                        <h4>Select Payment Method</h4>
+                        
+                        <?php if ($has_saved_cards): ?>
+                        <div class="payment-option">
+                            <input type="radio" id="pay_card" name="payment_method" value="card" checked class="payment-radio">
+                            <label for="pay_card" class="payment-label">
+                                <div class="payment-text">
+                                    <span class="payment-title">Pay with Saved Card</span>
+                                </div>
+                                <div class="payment-content">
+                                    <select id="card_id" name="card_id" class="select-input">
+                                        <option value="">-- Select a Saved Card --</option>
+                                        <?php foreach ($saved_cards as $card): ?>
+                                            <option value="<?php echo $card['card_id']; ?>">
+                                                <?php echo htmlspecialchars($card['card_name']) . ' - **** ' . substr($card['card_no'], -4); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </label>
+                        </div>
+                        <?php endif; ?>
+
+                        <div class="payment-option">
+                            <input type="radio" id="pay_upi" name="payment_method" value="upi" <?php if (!$has_saved_cards) echo 'checked'; ?> class="payment-radio">
+                            <label for="pay_upi" class="payment-label">
+                                <div class="payment-text">
+                                    <span class="payment-title">Pay with UPI</span>
+                                </div>
+                                <div class="payment-content">
+                                    <input type="text" id="upi_id" name="upi_id" class="form-control" placeholder="Enter your UPI ID">
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" name="total_amount" id="total_amount_hidden" value="<?php echo $grand_total; ?>">
                     <input type="hidden" name="delivery_fee" value="<?php echo $delivery_fee; ?>">
                     <input type="hidden" name="delivery_type" value="<?php echo htmlspecialchars($delivery_type); ?>">
                     <input type="hidden" name="delivery_distance" value="<?php echo $distance; ?>">
                     <input type="hidden" name="delivery_address" value="<?php echo htmlspecialchars($location); ?>">
-                    <button type="submit" name="proceed_to_payment" class="btn-pay">Proceed to Payment</button>
+                    
+                    <button type="submit" name="proceed_to_payment" class="btn-pay">Pay Now</button>
                 </form>
             </div>
 
@@ -227,6 +298,44 @@ $active_page = '';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quantityInput = document.getElementById('quantity');
+    const subtotalSpan = document.getElementById('subtotal-amount');
+    const grandTotalSpan = document.getElementById('grand-total-amount');
+    const totalAmountHiddenInput = document.getElementById('total_amount_hidden');
+    
+    // Read the base product rate and delivery fee from data attributes
+    const productRate = parseFloat(document.querySelector('.price').dataset.rate);
+    const deliveryFee = parseFloat(document.querySelector('[data-fee]').dataset.fee);
+
+    function updateTotal() {
+        const quantity = parseInt(quantityInput.value) || 0;
+        
+        // Calculate subtotal and grand total
+        const subtotal = productRate * quantity;
+        const grandTotal = subtotal + deliveryFee;
+        
+        // Format to 2 decimal places with commas
+        const formatCurrency = (num) => '₹' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+        // Update the displayed text
+        subtotalSpan.textContent = formatCurrency(subtotal);
+        grandTotalSpan.textContent = formatCurrency(grandTotal);
+
+        // Update the hidden input for form submission
+        totalAmountHiddenInput.value = grandTotal.toFixed(2);
+    }
+    
+    if(quantityInput) {
+        quantityInput.addEventListener('input', updateTotal);
+    }
+
+    // Initial calculation on page load
+    updateTotal();
+});
+</script>
 
 </body>
 </html>

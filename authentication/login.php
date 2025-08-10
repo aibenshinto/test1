@@ -3,13 +3,13 @@
 session_start();
 
 // Redirect logged-in users immediately
-if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['user_type'] === 'staff') {
-        if ($_SESSION['role'] === 'delivery') {
-            header("Location: ../staff/view_orders.php");
-        } else {
-            header("Location: ../staff/staff_dashboard.php");
-        }
+if (isset($_SESSION['staff_id'])) { // Check for staff_id specifically
+    if ($_SESSION['staff_role'] === 'admin') {
+        header("Location: ../admin/staff_management.php");
+    } elseif ($_SESSION['staff_role'] === 'delivery') {
+        header("Location: ../staff/delivery_dashboard.php");
+    } else {
+        header("Location: ../staff/staff_dashboard.php");
     }
     exit;
 }
@@ -34,7 +34,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $staff = $result->fetch_assoc();
 
             if (password_verify($password, $staff['Password'])) {
-                // Store staff data in session (separate from customer)
+                // Store staff data in session
                 $_SESSION['staff_id'] = $staff['Staff_id'];
                 $_SESSION['staff_name'] = $staff['Staff_fname'];
                 $_SESSION['staff_email'] = $staff['Staff_email'];
@@ -50,10 +50,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 exit;
             } else {
-                $message = "Incorrect password.";
+                $message = "Incorrect email or password.";
             }
         } else {
-            $message = "Staff account not found.";
+            $message = "Incorrect email or password.";
         }
         $stmt->close();
     }
@@ -65,33 +65,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Staff Login - E-commerce</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="login.css">
+    <title>Staff & Admin Login - Synopsis</title>
+    <!-- Link to the shared login stylesheet -->
+    <link rel="stylesheet" href="../css/login_style.css">
 </head>
 <body>
     <div class="login-container">
-        <h2>Staff Login</h2>
-        <?php if (!empty($message)) echo "<div class='error-message'>$message</div>"; ?>
-        <form method="post" action="login.php" autocomplete="off" id="loginForm">
+        <h2>Staff & Admin Login</h2>
+        
+        <?php if (!empty($message)) : ?>
+            <div class="error-message"><?php echo htmlspecialchars($message); ?></div>
+        <?php endif; ?>
+        
+        <form method="POST" action="login.php" autocomplete="off">
             <div class="input-group">
-                <input type="email" name="email" id="email" required placeholder=" " />
+                <input type="email" name="email" id="email" required placeholder=" ">
                 <label for="email">Email</label>
             </div>
-
+            
             <div class="input-group">
-                <input type="password" name="password" id="password" required placeholder=" " />
+                <input type="password" name="password" id="password" required placeholder=" ">
                 <label for="password">Password</label>
-                <button type="button" onclick="togglePassword()" class="toggle-btn">Show</button>
             </div>
-
+            
             <button type="submit" class="login-btn">Login</button>
         </form>
+        
         <div class="bottom-text">
-            Don't have an account? <a href="../staff/register_staff.php">Register</a>
+            Don't have an account? <a href="../staff/register_staff.php">Register here</a>
         </div>
     </div>
-
-    <script src="login.js"></script>
 </body>
 </html>

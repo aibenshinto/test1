@@ -60,21 +60,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_card'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['proceed_to_payment'])) {
     if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $error = "Invalid CSRF token.";
-    } elseif (empty($_POST['card_id'])) {
-        $error = "Please select a payment card.";
+    } elseif (empty($_POST['payment_method'])) {
+        $error = "Please select a payment method.";
     } else {
-        // Redirect to payment_processing.php
-        echo '<form id="paymentForm" method="post" action="payment_processing.php">';
-        echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
-        echo '<input type="hidden" name="cart_mid" value="' . htmlspecialchars($cart_mid) . '">';
-        echo '<input type="hidden" name="total_amount" value="' . floatval($_POST['total_amount']) . '">';
-        echo '<input type="hidden" name="delivery_fee" value="' . floatval($_POST['delivery_fee']) . '">';
-        echo '<input type="hidden" name="delivery_type" value="' . htmlspecialchars($_POST['delivery_type']) . '">';
-        echo '<input type="hidden" name="delivery_distance" value="' . floatval($_POST['delivery_distance']) . '">';
-        echo '<input type="hidden" name="delivery_address" value="' . htmlspecialchars($_POST['delivery_address']) . '">';
-        echo '<input type="hidden" name="card_id" value="' . htmlspecialchars($_POST['card_id']) . '">';
-        echo '</form><script>document.getElementById("paymentForm").submit();</script>';
-        exit;
+        $payment_method = $_POST['payment_method'];
+
+        if ($payment_method === 'card' && empty($_POST['card_id'])) {
+            $error = "Please select a payment card.";
+        } elseif ($payment_method === 'upi' && empty(trim($_POST['upi_id']))) {
+            $error = "Please enter your UPI ID.";
+        } elseif ($payment_method === 'upi' && !preg_match('/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/', trim($_POST['upi_id']))) {
+            $error = "Please enter a valid UPI ID format (e.g., yourname@bank).";
+        } else {
+            // Redirect to payment_processing.php
+            echo '<form id="paymentForm" method="post" action="payment_processing.php">';
+            echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
+            echo '<input type="hidden" name="cart_mid" value="' . htmlspecialchars($cart_mid) . '">';
+            echo '<input type="hidden" name="total_amount" value="' . floatval($_POST['total_amount']) . '">';
+            echo '<input type="hidden" name="delivery_fee" value="' . floatval($_POST['delivery_fee']) . '">';
+            echo '<input type="hidden" name="delivery_type" value="' . htmlspecialchars($_POST['delivery_type']) . '">';
+            echo '<input type="hidden" name="delivery_distance" value="' . floatval($_POST['delivery_distance']) . '">';
+            echo '<input type="hidden" name="delivery_address" value="' . htmlspecialchars($_POST['delivery_address']) . '">';
+            
+            // Send payment method and identifier
+            echo '<input type="hidden" name="payment_method" value="' . htmlspecialchars($payment_method) . '">';
+            if ($payment_method === 'card') {
+                 echo '<input type="hidden" name="payment_identifier" value="' . htmlspecialchars($_POST['card_id']) . '">';
+            } else {
+                 echo '<input type="hidden" name="payment_identifier" value="' . htmlspecialchars(trim($_POST['upi_id'])) . '">';
+            }
+
+            echo '</form><script>document.getElementById("paymentForm").submit();</script>';
+            exit;
+        }
     }
 }
 
@@ -92,6 +110,7 @@ $saved_cards_stmt->bind_param("s", $customer_id);
 $saved_cards_stmt->execute();
 $saved_cards = $saved_cards_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $saved_cards_stmt->close();
+$has_saved_cards = count($saved_cards) > 0;
 
 $cart_items_sql = "SELECT cc.item_qty AS quantity, cc.item_rate AS price, i.Item_name AS name 
                    FROM tbl_cart_child cc
@@ -195,17 +214,46 @@ $active_page = '';
                         <span>₹<?php echo number_format($grand_total, 2); ?></span>
                     </div>
                     
-                    <div class="summary-row">
-                        <label for="card_id" style="font-weight: bold;">Select Card to Pay</label>
-                        <select id="card_id" name="card_id" class="select-input" required>
-                            <option value="">-- Select a Saved Card --</option>
-                            <?php foreach ($saved_cards as $card): ?>
-                                <option value="<?php echo $card['card_id']; ?>">
-                                    <?php echo htmlspecialchars($card['card_name']) . ' - **** ' . substr($card['card_no'], -4); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <!-- FINAL CLEAN UI/UX FOR PAYMENT SELECTION -->
+                    <div class="payment-selection">
+                        <h4>Select Payment Method</h4>
+                        
+                        <!-- Saved Card Option -->
+                        <?php if ($has_saved_cards): ?>
+                        <div class="payment-option">
+                            <input type="radio" id="pay_card" name="payment_method" value="card" checked class="payment-radio">
+                            <label for="pay_card" class="payment-label">
+                                <div class="payment-text">
+                                    <span class="payment-title">Pay with Saved Card</span>
+                                </div>
+                                <div class="payment-content">
+                                    <select id="card_id" name="card_id" class="select-input">
+                                        <option value="">-- Select a Saved Card --</option>
+                                        <?php foreach ($saved_cards as $card): ?>
+                                            <option value="<?php echo $card['card_id']; ?>">
+                                                <?php echo htmlspecialchars($card['card_name']) . ' - **** ' . substr($card['card_no'], -4); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </label>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- UPI Option -->
+                        <div class="payment-option">
+                            <input type="radio" id="pay_upi" name="payment_method" value="upi" <?php if (!$has_saved_cards) echo 'checked'; ?> class="payment-radio">
+                            <label for="pay_upi" class="payment-label">
+                                <div class="payment-text">
+                                    <span class="payment-title">Pay with UPI</span>
+                                </div>
+                                <div class="payment-content">
+                                    <input type="text" id="upi_id" name="upi_id" class="form-control" placeholder="Enter your UPI ID">
+                                </div>
+                            </label>
+                        </div>
                     </div>
+                    <!-- END FINAL PAYMENT SELECTION -->
 
                     <input type="hidden" name="total_amount" value="<?php echo $grand_total; ?>">
                     <input type="hidden" name="delivery_fee" value="<?php echo $delivery_fee; ?>">

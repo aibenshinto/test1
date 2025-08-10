@@ -1,10 +1,20 @@
-/* General Body Styles */
+/* --- Global Styles & Variables (Teal Theme) --- */
+:root {
+    --primary-color: #1abc9c; /* Vibrant Teal */
+    --primary-hover: #16a085; /* Darker Teal */
+    --background-color: #ecf0f1; /* Light Grey Background */
+    --text-color: #2c3e50;       /* Deep Navy Text */
+    --card-background: #ffffff;
+    --border-color: #bdc3c7;   /* Soft Grey Border */
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
 body, html {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-family);
     height: 100%;
-    color: #333; 
+    color: var(--text-color);
 }
 
 /* Background Image */
@@ -13,23 +23,21 @@ body {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    background-attachment: fixed;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* Login Container with Frosted Glass Effect */
+/* Login Container with Card Effect */
 .login-container {
-    background: rgba(255, 255, 255, 0.85); 
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: var(--card-background);
     border-radius: 15px;
     padding: 40px;
     width: 100%;
     max-width: 400px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     text-align: center;
+    box-sizing: border-box;
 }
 
 .login-container h2 {
@@ -37,6 +45,7 @@ body {
     margin-bottom: 30px;
     font-size: 2rem;
     font-weight: 600;
+    color: var(--primary-hover);
 }
 
 /* Input Group Styling */
@@ -50,16 +59,16 @@ body {
     width: 100%;
     padding: 14px;
     font-size: 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     background-color: #fff;
-    box-sizing: border-box; /* Ensures padding doesn't affect width */
+    box-sizing: border-box;
     transition: border-color 0.3s ease;
 }
 
 .input-group input:focus {
     outline: none;
-    border-color: #007bff;
+    border-color: var(--primary-color);
 }
 
 .input-group label {
@@ -79,17 +88,16 @@ body {
     top: -10px;
     left: 10px;
     font-size: 0.75rem;
-    color: #007bff;
-    background-color: #fff;
+    color: var(--primary-color);
+    background-color: var(--card-background);
     padding: 0 5px;
 }
-
 
 /* Login Button Styling */
 .login-btn {
     width: 100%;
     padding: 14px;
-    background-color: #007bff;
+    background-color: var(--primary-color);
     border: none;
     border-radius: 8px;
     color: #fff;
@@ -100,7 +108,7 @@ body {
 }
 
 .login-btn:hover {
-    background-color: #0056b3;
+    background-color: var(--primary-hover);
 }
 
 /* Bottom text for registration link */
@@ -110,7 +118,7 @@ body {
 }
 
 .bottom-text a {
-    color: #007bff;
+    color: var(--primary-color);
     text-decoration: none;
     font-weight: bold;
 }

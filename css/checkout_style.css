@@ -1,12 +1,12 @@
-/* --- Global Styles & Variables (Teal Theme) --- */
+/* 
 :root {
-    --primary-color: #1abc9c; /* Vibrant Teal */
-    --primary-hover: #16a085; /* Darker Teal */
-    --secondary-color: #556270; /* Cool Grey */
-    --background-color: #ecf0f1; /* Light Grey Background */
-    --text-color: #2c3e50;      /* Deep Navy Text */
+    --primary-color: #1abc9c; 
+    --primary-hover: #16a085; 
+    --secondary-color: #556270; 
+    --background-color: #ecf0f1; 
+    --text-color: #2c3e50;      
     --card-background: #ffffff;
-    --border-color: #bdc3c7;   /* Soft Grey Border */
+    --border-color: #bdc3c7;   
     --success-color: #2ecc71;
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -19,7 +19,7 @@ body, html {
     color: var(--text-color);
 }
 
-/* --- Header --- */
+
 .header {
     background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-hover) 100%);
     color: white;
@@ -95,7 +95,7 @@ body, html {
 .dropdown-content a:hover { background-color: #f1f1f1; }
 
 
-/* --- Main Checkout Container --- */
+
 .checkout-container {
     max-width: 900px;
     margin: 30px auto;
@@ -180,50 +180,48 @@ body, html {
     margin-top: 15px;
 }
 
-/* --- REVISED & UNIFIED INPUT STYLES --- */
-/* This is the master rule for all text inputs and select dropdowns.
-   It ensures they all share the same base appearance. */
+
 .form-group .form-control,
 .payment-option .form-control,
 .payment-option .select-input,
 .quantity-input {
-    /* Reset browser-specific styling */
+    
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
 
-    /* Core styling for size and look */
+   
     width: 100%;
-    height: 48px; /* A fixed height for perfect alignment */
-    padding: 0 15px; /* Horizontal padding for text */
+    height: 48px; 
+    padding: 0 15px; 
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background-color: white;
     font-size: 1rem;
-    box-sizing: border-box; /* Crucial for consistent sizing */
+    box-sizing: border-box; 
     transition: border-color 0.3s ease;
-    line-height: 48px; /* Vertically center text in input */
+    line-height: 48px; 
 }
 
-/* Add a dropdown arrow back to the select element */
+
 .payment-option .select-input {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 0.5rem center;
     background-repeat: no-repeat;
     background-size: 1.5em 1.5em;
-    padding-right: 2.5rem; /* Make space for the arrow */
+    padding-right: 2.5rem; 
 }
 
 
-/* Special case for quantity input to have a fixed width */
+
 .quantity-input {
     width: 70px;
-    text-align: center; /* Center the number */
-    padding: 0; /* Reset padding for smaller box */
+    text-align: center; 
+    padding: 0; 
 }
 
 
-/* --- Form & Input Styles --- */
+
 .form-group {
     margin-bottom: 15px;
 }
@@ -234,7 +232,7 @@ body, html {
     font-size: 0.9rem;
 }
 
-/* Hover and focus states for all inputs */
+
 .form-group .form-control:focus,
 .payment-option .form-control:focus,
 .payment-option .select-input:focus,
@@ -310,9 +308,7 @@ body, html {
     background-color: #434e5a;
 }
 
-/* ======================================================= */
-/* --- FINAL CLEAN UI/UX FOR PAYMENT SELECTION --- */
-/* ======================================================= */
+
 .payment-selection {
     margin-top: 25px;
     padding-top: 20px;
@@ -348,16 +344,16 @@ body, html {
 .payment-text {
     display: flex;
     flex-direction: column;
-    margin-bottom: 15px; /* Add space between text and content */
+    margin-bottom: 15px; 
 }
 .payment-title {
     font-weight: 600;
     font-size: 1.1rem;
     color: var(--text-color);
 }
-/* Removed the description text */
+
 .payment-content {
-    /* No longer needs top margin or border */
+   
 }
 .payment-radio:checked + .payment-label {
     border-color: var(--primary-color);
@@ -370,4 +366,4 @@ body, html {
     border-radius: 5px;
     border-left: 4px solid #0c5460;
     font-size: 0.9rem;
-}
+} */
